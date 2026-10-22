@@ -4,3 +4,7 @@ TICKERS = ["JPM", "BAC", "WFC", "GOOGL", "MSFT", "NVDA", "XOM", "CVX", "COP", "W
 FORMS = ["10-Q", "10-K"]
 N_QUARTERS = 8
 SEC_IDENTITY = "Prithvi Hegde prithvihegde123@gmail.com"
+
+
+# TEST:
+TICKERS = ["JPM"]
