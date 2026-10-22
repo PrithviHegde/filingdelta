@@ -4,12 +4,10 @@ Run from the project root:
     python -m src.ingest
 """
 
-from pathlib import Path
+import sys
 from edgar import Company, set_identity
-from src.config import SEC_IDENTITY, TICKERS
-
-ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data" / "processed"
+sys.path.append("..")
+from src.config import ROOT, DATA_DIR, SEC_IDENTITY, TICKERS
 
 # MD&A is Item 2 of Part I in a 10-Q, and Item 7 (Part II) in a 10-K
 MDNA_SECTION = {
@@ -19,9 +17,9 @@ MDNA_SECTION = {
 
 
 def get_10q_mdna(filing):
-    """Return the MD&A text of a 10-Q, or None if the parser can't find it."""
-    if filing.form != "10-Q":
-        raise ValueError(f"Expected 10-Q, got {filing.form}")
+    """Return the MD&A text of a 10-Q (or 10-Q/A), or None if the parser can't find it."""
+    if filing.form not in ("10-Q", "10-Q/A"):
+        raise ValueError(f"Expected 10-Q or 10-Q/A, got {filing.form}")
 
     document = filing.obj().document
     if MDNA_SECTION["10-Q"] not in document.get_available_sec_sections():
@@ -31,9 +29,9 @@ def get_10q_mdna(filing):
 
 
 def get_10k_mdna(filing):
-    """Return the MD&A text of a 10-K, or None if the parser can't find it."""
-    if filing.form != "10-K":
-        raise ValueError(f"Expected 10-K, got {filing.form}")
+    """Return the MD&A text of a 10-K (or 10-K/A), or None if the parser can't find it."""
+    if filing.form not in ("10-K", "10-K/A"):
+        raise ValueError(f"Expected 10-K or 10-K/A, got {filing.form}")
 
     document = filing.obj().document
     if MDNA_SECTION["10-K"] not in document.get_available_sec_sections():
@@ -42,8 +40,11 @@ def get_10k_mdna(filing):
     return document.get_sec_section(MDNA_SECTION["10-K"])
 
 
-def save_mdna(time_period, mdna, ticker):
+def save_mdna(time_period, mdna, ticker, amended=False):
     """Save MD&A text to data/processed/{ticker}/{period}_mdna.txt.
+
+    Amendments (10-Q/A, 10-K/A) cover the same period as the original filing,
+    so they go to {period}_mdna_amended.txt instead of overwriting it.
 
     Returns True if saved, False if there was no text to save.
     """
@@ -54,7 +55,8 @@ def save_mdna(time_period, mdna, ticker):
     out_dir = DATA_DIR / ticker
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    out_path = out_dir / f"{time_period}_mdna.txt"
+    suffix = "_amended" if amended else ""
+    out_path = out_dir / f"{time_period}_mdna{suffix}.txt"
     out_path.write_text(mdna, encoding="utf-8")
     print(f"  Saved {len(mdna):,} chars to {out_path.relative_to(ROOT)}")
     return True
@@ -68,8 +70,8 @@ def ingest_ticker(ticker, n_10q=6, n_10k=2):
 
 
     company = Company(ticker)
-    latest_10Q_filings = company.get_filings(form="10-Q").latest(n_10q)
-    latest_10K_filings = company.get_filings(form="10-K").latest(n_10k)
+    latest_10Q_filings = company.get_filings(form="10-Q").head(n_10q)
+    latest_10K_filings = company.get_filings(form="10-K").head(n_10k)
 
     skipped, saved = 0, 0
 
@@ -77,7 +79,7 @@ def ingest_ticker(ticker, n_10q=6, n_10k=2):
         try:
             mdna = get_10q_mdna(tenQ)
             time_period = tenQ.period_of_report
-            if save_mdna(time_period, mdna, ticker):
+            if save_mdna(time_period, mdna, ticker, amended=tenQ.form.endswith("/A")):
                 saved +=1
             else:
                 skipped +=1
@@ -89,7 +91,7 @@ def ingest_ticker(ticker, n_10q=6, n_10k=2):
         try:
             mdna = get_10k_mdna(tenK)
             time_period = tenK.period_of_report
-            if save_mdna(time_period, mdna, ticker):
+            if save_mdna(time_period, mdna, ticker, amended=tenK.form.endswith("/A")):
                 saved +=1
             else:
                 skipped +=1
