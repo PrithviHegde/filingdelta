@@ -29,7 +29,7 @@ src/config.py      paths, TICKERS, FORMS, SEC_IDENTITY
 src/ingest.py      fetch filings, extract MD&A, save text + data/processed/manifest.csv
 src/pairs.py       manifest -> data/processed/pairs.csv (which filing is compared with which)
 src/validate.py    adds word_count, median_words, flag_reason, review_note, valid to the manifest
-src/clean.py       raw MD&A -> {period}_mdna_clean.txt. Done: Item 8 trim. Todo: paragraphs, junk removal, section labels
+src/clean.py       raw MD&A -> data/processed/paragraphs.csv (+ {period}_mdna_clean.txt for reading)
 src/diff.py        (todo) paragraph matching and change labels
 data/processed/{TICKER}/{period}_mdna.txt          MD&A text; amendments -> {period}_mdna_amended.txt
 notebooks/01_explore_edgar.ipynb   Day 1 EDGAR exploration and findings
@@ -44,7 +44,8 @@ python -m src.ingest --manifest-only  # MD&A already on disk: fetch metadata onl
 python -m src.ingest --tickers MSFT   # one ticker
 python -m src.validate                # flags into manifest; rerun after every ingest (ingest rewrites it)
 python -m src.validate --tickers MSFT # dry run: print only, no write
-python -m src.clean                   # write {period}_mdna_clean.txt
+python -m src.clean                   # write paragraphs.csv and {period}_mdna_clean.txt
+python -m src.clean --tickers MSFT    # some tickers; paragraphs.csv not written
 python -m src.pairs                   # build pairs.csv from the manifest
 ```
 
@@ -68,12 +69,18 @@ python -m src.pairs                   # build pairs.csv from the manifest
 - Day 1 done: ingestion for 11 tickers x 8 filings (88 MD&A files in `data/processed/`).
 - Day 2 task 1 done (manifest + pairs), run against SEC: manifest 88 rows (66 10-Q, 22 10-K, no amendments, no nulls, no fiscal-quarter warnings); pairs.csv 78 pairs (11 annual, 34 qoq, 33 yoy; MSFT has 4 qoq). Fiscal labels and acceptance times checked by hand for all tickers.
 - Day 2 task 2 done (validation; Prithvi wrote the check functions). Rules: < 3,000 words; > 2x ticker's 10-Q median (10-Ks: > 5x, since a 10-K-only median of 2 filings can never be exceeded 2x); no "Management's Discussion" / "MD&A" / "Overview" in first 500 chars. Result: 2 of 88 flagged (JPM 10-Ks, heading after ~800 words of highlights), reviewed OK in `REVIEWED_OK` (by accession), all 88 valid.
-- Task 3 started: clean.py trims Item 8 overrun (6 10-Ks: CVX, JPM, XOM). Next: rest of clean.py, then diff.py (should read the `_clean` files), prices. Details in `docs/plan.md`.
+- Day 2 task 3 done (clean.py): Item 8 trim, page junk, page-split joins, section labels, table tags -> paragraphs.csv, 26,091 rows (19,305 text, 4,661 heading, 2,125 table). Dropped blocks, join seams and per-filing median paragraph length checked for every ticker.
+- Next: task 4 diff.py (reads paragraphs.csv, kind == "text"), then task 5 prices. Details in `docs/plan.md`.
 
 ## Known data quirks
 
 - MD&A word counts range ~4.4k (NVDA 10-Q) to ~64k (JPM 10-K).
-- Extracted text still contains page numbers and repeated headers (clean.py's job).
+- Page junk differs by company: MSFT "PART I"/"Item 2"; GOOGL "Table of Contents  Alphabet Inc."; JPM/MS/PG/COP footers with the page number inside. clean.py only drops repeated short lines *near a page break*: dropping every repeated short line (first try) removed real segment headings and sentences that differ only in numbers.
+- Page-split joins only when clearly mid-sentence (second half starts lowercase, or first half's last word is lowercase / ends in a comma, and second starts with a letter): joining any two text blocks glued tables, bullets and footnotes to neighbours (JPM had 807 "joins").
+- XOM 2026 10-Qs (2026-03-31, 2026-06-30) are hard-wrapped by edgartools: blank line after every printed line. The join rule fixes them (130-150 joins each, vs 0-2 for other XOM filings); median paragraph length now in line.
+- CVX page header is 15 words, so REPEAT_MAX_WORDS is 20, not 12.
+- Known clean.py misses: a few page-top headings dropped (JPM "Quarterly results", XOM "Volume / Mix", KO/PG "Nine months ended ... versus ..."); header-heavy tables tagged text; chart labels sometimes joined to the next paragraph.
+- Check per-filing join counts and median paragraph length after any clean.py change: an outlier filing (like XOM 2026) hides in ticker totals.
 - MD&A length seems to grow through the fiscal year (Q1 shortest): check if real before normalizing.
 - `filing_date` is the next business day for filings accepted after 17:30 ET (all 8 GOOGL, 1 PG): never use it as the event date.
 - Accepted after close for all 8 filings: MSFT, NVDA, GOOGL, JPM, MS, PG, WMT. COP, CVX, KO always intraday; XOM 2 of 8 after close. After-close does not mean "with earnings": JPM, MS, WMT file 2-4 weeks after results. Not yet checked against actual earnings dates.

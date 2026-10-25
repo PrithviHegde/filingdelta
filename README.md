@@ -31,7 +31,8 @@ The ticker list is in `src/config.py`.
 
 ```
 data/processed/{ticker}/{period}_mdna.txt   extracted MD&A text (not committed; regenerate with the pipeline)
-data/processed/{ticker}/{period}_mdna_clean.txt   cleaned MD&A (raw file left untouched)
+data/processed/{ticker}/{period}_mdna_clean.txt   cleaned MD&A, one block per paragraph, for reading (raw file left untouched)
+data/processed/paragraphs.csv               one row per paragraph, all filings: kind (text / heading / table), section, text
 data/processed/manifest.csv                 one row per filing: form, accession, acceptance time, fiscal year / quarter, file path, validation flags
 data/processed/pairs.csv                    which filing is compared with which (yoy, qoq, annual)
 notebooks/01_explore_edgar.ipynb            exploration of EDGAR filings and section extraction, with findings
@@ -39,7 +40,7 @@ notebooks/02_diff_sanity.ipynb              difflib baseline on MSFT (why paragr
 src/config.py                               tickers, forms, SEC identity
 src/ingest.py                               ingestion pipeline: fetch filings, extract MD&A, save, write manifest
 src/validate.py                             flag MD&A that is too short, too long or doesn't start like MD&A
-src/clean.py                                clean MD&A text (so far: trim text that ran into Item 8)
+src/clean.py                                clean MD&A and split it into labelled paragraphs
 src/pairs.py                                build pairs.csv from the manifest
 ```
 
@@ -64,7 +65,7 @@ python -m src.ingest                  # download + extract MD&A for all tickers,
 python -m src.ingest --manifest-only  # MD&A already on disk: fetch metadata only, write manifest
 python -m src.ingest --tickers MSFT   # one ticker
 python -m src.validate                # add validation flags to the manifest (rerun after every ingest)
-python -m src.clean                   # write cleaned MD&A next to the raw files
+python -m src.clean                   # clean MD&A, write paragraphs.csv
 python -m src.pairs                   # build pairs.csv from the manifest
 ```
 
@@ -77,7 +78,7 @@ python -m src.pairs                   # build pairs.csv from the manifest
 - **Silent parser failures on large banks.** For BAC, WFC, C, GS, PNC and USB, `edgartools` section extraction either can't find 10-Q MD&A or returns the wrong section (e.g. BAC's share repurchase table in place of MD&A; WFC's financial statement notes). WFC's 10-K MD&A is in Exhibit 13. These banks are excluded for now, so the bank sector is thin. Details in `notebooks/01_explore_edgar.ipynb`.
 - **"Saved" does not mean "correct."** `src.validate` flags MD&A under 3,000 words, over 2× the ticker's 10-Q median (5× for 10-Ks, which run 0.9-3.9× it), or without an MD&A heading in its first 500 characters. Current run: 2 of 88 flagged, both JPM 10-Ks, real MD&A that opens with ~800 words of financial highlights; reviewed and kept as valid, with the flag on record.
 - **MD&A extraction runs into Item 8 for CVX, JPM and XOM 10-Ks.** edgartools' Item 7 continues into management's report on internal control and the auditor's report (4-22% of the text). None of the validation checks catches it. `src.clean` cuts at the first standalone Item 8 heading; without that, changing audit-report wording would show up as language changes in annual pairs.
-- **Page numbers and headers** remain in the extracted text and need cleaning before diffing.
+- **Cleaning is rule-based, so it has known misses.** `src.clean` drops page numbers, footers and running headers (short lines that repeat *next to a page break*; a first version that dropped every repeated short line also removed real segment headings and number-only sentences), re-joins paragraphs cut by a page break (only when the cut is clearly mid-sentence: the second half starts lowercase, or the first ends in a lowercase word or comma), and tags tables. XOM's 2026 10-Qs come out of edgartools hard-wrapped (a blank line after every printed line); the join rule puts them back together, and their paragraph lengths now match XOM's other 10-Qs. Known misses: a few real headings that usually sit at a page top are dropped (JPM "Quarterly results", XOM "Volume / Mix", KO/PG "Nine months ended ... versus ..."); some tables made mostly of column headers stay tagged as text; a split whose second half starts with "(" or whose first half ends in a capitalised word stays as two paragraphs. Result: 26,091 paragraphs (19,305 text, 4,661 headings, 2,125 tables).
 - **Fiscal calendars differ** (MSFT and PG end in June, NVDA and WMT in January, KO and NVDA use 52/53-week years), so filings are aligned by fiscal quarter, derived from SEC's fiscal year end, never by calendar date.
 - **Filing date is not the event date.** SEC gives filings accepted after 5:30pm ET the next business day's filing date (all 8 GOOGL filings, one PG). Event timing uses the acceptance time from the filing header instead, with a 4pm cutoff for the next trading day.
 - **Earnings confound.** Some companies (e.g. MSFT, GOOGL, NVDA) file the 10-Q on the evening of their earnings release, so the filing's event day is also the earnings reaction day. Others file weeks after earnings (JPM, MS, WMT file 2-4 weeks after their quarter's results). Earnings dates need to be recorded per filing and controlled for.
@@ -89,7 +90,7 @@ python -m src.pairs                   # build pairs.csv from the manifest
 - [x] Ingest MD&A for 11 companies × 8 quarters
 - [x] Filing manifest (acceptance time, fiscal quarter) and pairing rule: 78 pairs
 - [x] Validation step for extracted sections
-- [ ] Text cleaning: Item 8 overrun trimmed; page numbers, headers, paragraphs still to do
+- [x] Text cleaning: Item 8 trim, page junk, page-split paragraphs, section labels, table tags
 - [ ] Paragraph-level diffing between quarters
 - [ ] Separate meaningful language changes from number updates
 - [ ] Stock price data and event-study setup
