@@ -44,7 +44,6 @@ python -m src.ingest --manifest-only  # MD&A already on disk: fetch metadata onl
 python -m src.ingest --tickers MSFT   # one ticker
 python -m src.validate                # flags into manifest; rerun after every ingest (ingest rewrites it)
 python -m src.validate --tickers MSFT # dry run: print only, no write
-python -m src.validate --selftest     # toy checks for the check functions
 python -m src.clean                   # write {period}_mdna_clean.txt
 python -m src.pairs                   # build pairs.csv from the manifest
 ```

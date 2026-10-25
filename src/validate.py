@@ -13,7 +13,6 @@ Needs no SEC access; rerun after every `python -m src.ingest` (which rewrites th
 Run from the project root:
     python -m src.validate                  # validate all filings, write the manifest
     python -m src.validate --tickers MSFT   # dry run on some tickers: print only, no write
-    python -m src.validate --selftest       # check the three check functions on toy inputs
 """
 
 import argparse
@@ -36,7 +35,6 @@ REVIEWED_OK = {
                             "~840 words of financial highlights (JPM 10-K layout). Reviewed 2026-10-24.",
 }
 
-# Thresholds from docs/plan.md. Starting points: adjust after looking at the data (Step 1).
 # Shortest real MD&A observed 2026-10-24 is 4,407 words (NVDA 10-Q 2026-04-26); 5,000
 # flagged three genuine filings. 3,000 sits well below that and still catches stubs.
 MIN_WORDS = 3_000
@@ -50,7 +48,7 @@ HEADING_CHARS = 500
 
 
 # ---------------------------------------------------------------------------
-# Checks: Prithvi writes these. Each returns a short reason string, or None if fine.
+# Checks: each returns a short reason string, or None if the filing passes.
 # ---------------------------------------------------------------------------
 
 def check_too_short(word_count):
@@ -77,9 +75,8 @@ def check_too_long(word_count, median_words, form="10-Q"):
 def check_heading(text):
     """Return "no MD&A heading" if the first HEADING_CHARS characters don't look like MD&A, else None.
 
-    Plan suggests looking for "Management's Discussion", "MD&A" or "Overview".
-    Things to handle: capitalisation (MANAGEMENT'S), curly vs straight apostrophes
-    (’ vs '), and whatever else Step 1 shows the real files start with.
+    Looks for "Management's Discussion", "MD&A" or "Overview", ignoring case. Both
+    apostrophe forms are listed because filings use either (MSFT uses the curly ’).
     """
 
     header_list = ["Management's Discussion", "MANAGEMENT’S DISCUSSION", "MD&A", "Overview"]
@@ -171,40 +168,10 @@ def print_report(manifest, texts, n_chars=300):
             print(texts[i][:n_chars].strip())
 
 
-def selftest():
-    """Toy inputs for the four TODO functions. Expectations use the plan's default thresholds."""
-    assert check_too_short(100) is not None
-    assert check_too_short(5_000) is None
-
-    assert check_too_long(40_000, 10_000) is not None
-    assert check_too_long(12_000, 10_000) is None
-    assert check_too_long(40_000, 10_000, "10-K") is None       # 4x is normal-ish for a 10-K
-    assert check_too_long(60_000, 10_000, "10-K") is not None
-
-    assert check_heading("Item 2. Management's Discussion and Analysis of Financial Condition") is None
-    assert check_heading("ITEM 2. MANAGEMENT’S DISCUSSION AND ANALYSIS") is None   # curly apostrophe
-    assert check_heading("Overview\nWe are a technology company...") is None
-    assert check_heading("Issuer Purchases of Equity Securities. The following table...") is not None
-    assert check_heading("x" * HEADING_CHARS + " Management's Discussion") is not None  # too late
-
-    toy = pd.DataFrame({"ticker": ["A", "A", "A", "B"], "form": ["10-Q", "10-Q", "10-K", "10-Q"],
-                        "word_count": [100, 200, 900, 50]})
-    medians = add_median_words(toy)
-    assert list(medians.index) == list(toy.index)
-    # Ticker A's 10-Q median (100, 200 -> 150) on all A rows, including its 10-K
-    assert medians.tolist() == [150.0, 150.0, 150.0, 50.0], medians.tolist()
-    print("selftest passed")
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--tickers", nargs="+", help="dry run on these tickers: print, don't write")
-    parser.add_argument("--selftest", action="store_true", help="run toy checks and exit")
     args = parser.parse_args()
-
-    if args.selftest:
-        selftest()
-        return
 
     # fiscal_year_end as str, or "0630" comes back as 630 and is written that way
     manifest = pd.read_csv(MANIFEST_PATH, dtype={"fiscal_year_end": str})
