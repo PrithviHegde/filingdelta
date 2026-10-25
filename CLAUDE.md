@@ -28,7 +28,8 @@ Full day-by-day plan: `docs/plan.md`. Project overview and known issues: `README
 src/config.py      paths, TICKERS, FORMS, SEC_IDENTITY
 src/ingest.py      fetch filings, extract MD&A, save text + data/processed/manifest.csv
 src/pairs.py       manifest -> data/processed/pairs.csv (which filing is compared with which)
-src/clean.py       (todo) paragraphs, junk removal, section labels
+src/validate.py    adds word_count, median_words, flag_reason, review_note, valid to the manifest
+src/clean.py       raw MD&A -> {period}_mdna_clean.txt. Done: Item 8 trim. Todo: paragraphs, junk removal, section labels
 src/diff.py        (todo) paragraph matching and change labels
 data/processed/{TICKER}/{period}_mdna.txt          MD&A text; amendments -> {period}_mdna_amended.txt
 notebooks/01_explore_edgar.ipynb   Day 1 EDGAR exploration and findings
@@ -41,6 +42,10 @@ notebooks/02_diff_sanity.ipynb     difflib baseline on MSFT (motivates order-ind
 python -m src.ingest                  # download + extract MD&A for all tickers, write manifest
 python -m src.ingest --manifest-only  # MD&A already on disk: fetch metadata only, write manifest
 python -m src.ingest --tickers MSFT   # one ticker
+python -m src.validate                # flags into manifest; rerun after every ingest (ingest rewrites it)
+python -m src.validate --tickers MSFT # dry run: print only, no write
+python -m src.validate --selftest     # toy checks for the check functions
+python -m src.clean                   # write {period}_mdna_clean.txt
 python -m src.pairs                   # build pairs.csv from the manifest
 ```
 
@@ -63,7 +68,8 @@ python -m src.pairs                   # build pairs.csv from the manifest
 
 - Day 1 done: ingestion for 11 tickers x 8 filings (88 MD&A files in `data/processed/`).
 - Day 2 task 1 done (manifest + pairs), run against SEC: manifest 88 rows (66 10-Q, 22 10-K, no amendments, no nulls, no fiscal-quarter warnings); pairs.csv 78 pairs (11 annual, 34 qoq, 33 yoy; MSFT has 4 qoq). Fiscal labels and acceptance times checked by hand for all tickers.
-- Next: task 2 validation (`valid`, `flag_reason` in manifest: < 1,500 words, > 3x ticker median, first ~500 chars lack "Management's Discussion" / "MD&A" / "Overview"; eyeball every flag), then clean.py, diff.py, prices. Details in `docs/plan.md`.
+- Day 2 task 2 done (validation; Prithvi wrote the check functions). Rules: < 3,000 words; > 2x ticker's 10-Q median (10-Ks: > 5x, since a 10-K-only median of 2 filings can never be exceeded 2x); no "Management's Discussion" / "MD&A" / "Overview" in first 500 chars. Result: 2 of 88 flagged (JPM 10-Ks, heading after ~800 words of highlights), reviewed OK in `REVIEWED_OK` (by accession), all 88 valid.
+- Task 3 started: clean.py trims Item 8 overrun (6 10-Ks: CVX, JPM, XOM). Next: rest of clean.py, then diff.py (should read the `_clean` files), prices. Details in `docs/plan.md`.
 
 ## Known data quirks
 
@@ -73,3 +79,6 @@ python -m src.pairs                   # build pairs.csv from the manifest
 - `filing_date` is the next business day for filings accepted after 17:30 ET (all 8 GOOGL, 1 PG): never use it as the event date.
 - Accepted after close for all 8 filings: MSFT, NVDA, GOOGL, JPM, MS, PG, WMT. COP, CVX, KO always intraday; XOM 2 of 8 after close. After-close does not mean "with earnings": JPM, MS, WMT file 2-4 weeks after results. Not yet checked against actual earnings dates.
 - Read the manifest with `dtype={"fiscal_year_end": str}`, or "0630" loads as 630.
+- CVX, JPM, XOM 10-K Item 7 runs into Item 8 (management's report, auditor's report; 4-22% of words). Validation doesn't catch it; clean.py cuts at the first whole-line Item 8 heading. XOM 2024 10-K lists those headings in a table of contents (line 15, with page numbers), so never cut on a plain substring match.
+- `word_count` in the manifest is on raw text (includes that overrun).
+- 10-K vs 10-Q MD&A length: ~1x for MSFT, GOOGL, NVDA; 1.3-2.2x for most; 3.9x for XOM.
