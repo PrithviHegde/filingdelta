@@ -7,7 +7,7 @@ Focus: move fast through data plumbing; spend most of the time on the AI parts (
 - 11 tickers: JPM, MS, GOOGL, MSFT, NVDA, XOM, CVX, COP, WMT, PG, KO. BAC/WFC/C/GS/PNC/USB dropped (edgartools section parsing fails silently on their 10-Qs).
 - Diff sanity check on MSFT with difflib: positional diff can't handle moved or slightly edited paragraphs, so order-independent matching is needed.
 
-## Day 2: plumbing, fast (Claude writes, Prithvi reviews)
+## Day 2: data plumbing
 1. Manifest: save filing metadata (form, acceptance time, period, fiscal quarter, accession) with each file; decide pairing rule.
 2. Validation: flag sections that are too short, too long, or don't start like MD&A. Eyeball every flagged file.
 3. `src/clean.py`: paragraphs, drop page numbers and repeated headers, re-join page-split paragraphs, keep section headings as labels, tag tables.
