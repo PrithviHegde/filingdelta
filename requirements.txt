@@ -15,6 +15,7 @@ certifi==2026.10.19
 cffi==2.1.1
 charset-normalizer==3.5.2
 comm==0.2.3
+curl_cffi==0.17.0
 debugpy==1.8.22
 defusedxml==0.7.1
 edgartools==5.62.0
@@ -72,10 +73,12 @@ packaging==26.3
 pandas==3.1.0
 pandocfilters==1.5.1
 parso==0.8.7
+peewee==4.5.3
 pexpect==4.9.0
 platformdirs==4.13.5
 prometheus_client==0.26.0
 prompt_toolkit==3.0.53
+protobuf==7.36.2
 psutil==7.2.2
 ptyprocess==0.7.0
 pure_eval==0.2.4
@@ -87,6 +90,7 @@ Pygments==2.21.0
 pyrate-limiter==4.5.1
 python-dateutil==3.0.0
 python-json-logger==4.2.0
+pytz==2026.6
 PyYAML==6.0.3
 pyzmq==27.2.0
 rank-bm25==0.2.2
@@ -123,4 +127,6 @@ wcwidth==0.9.3
 webcolors==25.10.0
 webencodings==0.6.1
 websocket-client==1.9.2
+websockets==17.4
 widgetsnbextension==4.0.16
+yfinance==1.8.0

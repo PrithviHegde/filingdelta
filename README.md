@@ -36,6 +36,9 @@ data/processed/paragraphs.csv               one row per paragraph, all filings: 
 data/processed/manifest.csv                 one row per filing: form, accession, acceptance time, fiscal year / quarter, file path, validation flags
 data/processed/pairs.csv                    which filing is compared with which (yoy, qoq, annual)
 data/processed/changes.csv                  one row per matched / added / removed paragraph per pair, with change label
+data/processed/prices.csv                   daily adjusted closes: 11 tickers, SPY, sector ETFs
+data/processed/earnings.csv                 one row per filing: the earnings release (8-K Item 2.02) that preceded it
+data/processed/events.csv                   abnormal returns: filing / earnings x SPY / sector ETF x CAR window
 labels/diff_handcheck.csv                   24 hand-annotated changes.csv rows (label correct? + note), seed for the gold set
 notebooks/01_explore_edgar.ipynb            exploration of EDGAR filings and section extraction, with findings
 notebooks/02_diff_sanity.ipynb              difflib baseline on MSFT (why paragraph matching must ignore order)
@@ -46,6 +49,9 @@ src/validate.py                             flag MD&A that is too short, too lon
 src/clean.py                                clean MD&A and split it into labelled paragraphs
 src/pairs.py                                build pairs.csv from the manifest
 src/diff.py                                 match paragraphs between paired filings and label the changes
+src/prices.py                               download daily prices (yfinance)
+src/earnings.py                             match each filing to its earnings release on SEC
+src/event_study.py                          event days, market model, cumulative abnormal returns
 ```
 
 ## Setup
@@ -73,6 +79,9 @@ python -m src.clean                   # clean MD&A, write paragraphs.csv
 python -m src.pairs                   # build pairs.csv from the manifest
 python -m src.diff                    # match paragraphs per pair, write changes.csv (~1 min)
 python -m src.diff --tickers MSFT     # some tickers: print a report, don't write
+python -m src.prices                  # download prices, write prices.csv
+python -m src.earnings                # find each filing's earnings release, write earnings.csv
+python -m src.event_study             # abnormal returns, write events.csv
 ```
 
 `src.ingest` downloads the last 6 10-Qs and 2 10-Ks for each ticker, extracts MD&A, and writes one text file per filing period to `data/processed/`, plus `manifest.csv` with each filing's metadata. Filings that fail are logged and skipped, and a saved / skipped summary is printed per ticker.
@@ -80,6 +89,16 @@ python -m src.diff --tickers MSFT     # some tickers: print a report, don't writ
 `src.pairs` pairs filings on fiscal year / quarter: **yoy** (10-Q vs the same fiscal quarter last year, the primary comparison since it removes seasonal wording), **qoq** (10-Q vs the previous 10-Q in the same fiscal year), and **annual** (10-K vs prior 10-K). Amendments are excluded. The current window gives 78 pairs: 33 yoy, 34 qoq, 11 annual.
 
 `src.diff` compares the text paragraphs of each pair (tables left out: their changes are number updates). Numbers, percentages, $ amounts, dates and period words ("three months", "second quarter") are masked first, so "revenue grew 17%" → "20%" is a number update, not a language change. Every old paragraph is scored against every new one (RapidFuzz `token_sort_ratio`, case-insensitive), then paired one-to-one with optimal assignment (Hungarian algorithm), so a paragraph that moved still finds its partner. Labels: **unchanged** (same text), **numbers_only** (same after masking), **reworded**, **added**, **removed**. Result: 18,636 rows over 78 pairs; a median 95% of old paragraphs find a partner in qoq pairs, 82% in yoy, 84% in annual.
+
+**Event study.** Each filing's event day is the first trading day the market could react: the acceptance day, or the next trading day if accepted at or after the 4pm ET close (acceptance time from the SEC filing header). A market model (OLS of the stock's daily return on the benchmark's, trading days −250 to −30) gives the expected return; abnormal returns are summed over [0,+1], [−1,+1] and [0,+5]. Two benchmarks: SPY and the ticker's SPDR sector ETF (XLF, XLK, XLC, XLE, XLP). The same is done for each filing's earnings release, taken from SEC: the latest 8-K with Item 2.02 (Results of Operations) accepted after the quarter ended and before the filing. All 88 filings have one.
+
+How far filings trail earnings decides what can be measured:
+
+| Filing vs earnings release | Tickers |
+|---|---|
+| Same trading day (filing reaction = earnings reaction) | GOOGL, MSFT, NVDA; COP 10-Qs |
+| 1-2 trading days later | XOM, KO, PG 10-Qs |
+| 4-25 trading days later | CVX, JPM, MS, WMT, and every 10-K |
 
 ## Known issues and limitations
 
@@ -94,6 +113,10 @@ python -m src.diff --tickers MSFT     # some tickers: print a report, don't writ
 - **Fuzzy matching has a precision / recall trade-off with no clean cut-off.** Best-match scores don't split into two clear groups: 60-80 mixes real rewrites with look-alike template sentences (MSFT's "X increased $N or N% driven by Y" under every segment, JPM's "Equity Markets revenue" vs "Fixed Income Markets revenue"). Thresholds were set by reading samples per score band: a match needs 65 within the same section, 80 across sections, and same-section partners get a small tie-break bonus. Some wrong partners remain in the 65-80 band (roughly 1 in 4 there), which inflates "reworded" and hides some added / removed paragraphs. This is the baseline that embeddings are compared against.
 - **Hand check of 24 change rows** (stratified by label, 9 tickers; 10 reworded, half of them from the 65-80 score band): 23 labels correct. The miss is a wrong partner at score 66 (JPM: a CECL footnote matched to an unrelated capital-ratio footnote). "Reworded" means the wording changed, not that the meaning did: some are grammar knock-ons of period updates (WMT "for both the three and six months" → "the three and nine months"). Judging materiality is left to the change classifier.
 - **No "moved" label.** A flag for "matched paragraph now under a different heading" was tried and dropped: section labels from clean.py are too noisy (renamed headings, a "Table of Contents" section, headings attached to the wrong paragraphs), and all 3 flags in the hand check were wrong. JPM alone had 391, because its 10-Qs repeat sentences under both "Quarterly results" and "Year-to-date results".
+- **The filing reaction can't be separated from earnings for GOOGL, MSFT, NVDA (and COP 10-Qs)**: they file the 10-Q on the same day as the results, so the filing's CAR is the earnings CAR. 34% of filings have the earnings day inside their [0,+1] window, 50% inside [−1,+1] (`earnings_in_window` in events.csv). Tests of the filing text have to use the separable filings or control for the earnings reaction.
+- **Neither benchmark fits every ticker.** Over 2025-26, consumer staples and energy moved almost independently of the S&P 500 (estimated betas vs SPY: KO 0.04, PG −0.02, XOM 0.23; XLP itself −0.03 since mid-2025), so SPY removes little of their market-wide moves and the sector model is more informative. For tech the sector model is biased the other way: MSFT and NVDA are a large part of XLK (as XOM is of XLE and GOOGL of XLC), so part of their own move is subtracted out. Market-wide shocks still leak in: MS's 10-Q event window (2024-11-05/06) contains the post-election bank rally, +9.5% vs SPY but +3.8% vs XLF.
+- **XOM changed registrant on 2026-07-01** (redomiciled to Texas; ExxonMobil Holdings Corp, CIK 2115436, is the successor). Its earnings 8-K for Q2 2026 is under the new CIK, the Q2 10-Q still under the old one (34088). `src/earnings.py` searches both (`EXTRA_CIKS` in config); future XOM 10-Qs will need the new CIK in ingestion too.
+- **Half-day sessions** (day before July 4, day after Thanksgiving, Christmas Eve) close at 1pm, but the event-day rule assumes 4pm. No filing in the sample was accepted on one.
 - **MD&A length grows through the fiscal year** (Q1 shortest), need to check if this is actually a real trend, or just an anomaly. If it is, it has to be normalized.
 
 ## Roadmap
@@ -104,6 +127,6 @@ python -m src.diff --tickers MSFT     # some tickers: print a report, don't writ
 - [x] Text cleaning: Item 8 trim, page junk, page-split paragraphs, section labels, table tags
 - [x] Paragraph-level diffing between quarters (order-independent matching)
 - [x] Separate meaningful language changes from number updates
-- [ ] Stock price data and event-study setup
+- [x] Stock price data, earnings dates and event-study setup
 - [ ] RAG / LLM layer to explain what changed
 - [ ] Evaluation and explainability
