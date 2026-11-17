@@ -3,7 +3,10 @@
 For every pair in data/processed/pairs.csv:
   1. take the old and new filing's text paragraphs from data/processed/paragraphs.csv
   2. mask()               hide numbers, percentages, $ amounts and dates
-  3. similarity_matrix()  score every old paragraph against every new one (0-100)
+  3. score every old paragraph against every new one, with one of two methods:
+       fuzzy      similarity_matrix(): RapidFuzz token_sort_ratio on masked text (0-100)
+       embedding  embedding_scores(): cosine of bge-small embeddings of the masked text,
+                  directions masked too (0-1; vectors from src/embed.py)
   4. match()              pair old and new paragraphs one-to-one, in any order
   5. label()              unchanged / numbers_only / reworded for each match;
                           old paragraphs left unmatched are "removed", new ones "added"
@@ -12,11 +15,16 @@ Masking is what separates number updates ("revenue grew 17%" -> "revenue grew 20
 real language changes. Order-independent matching is what difflib couldn't do (notebook 02):
 a paragraph that moved or was lightly edited still finds its partner.
 
-Writes data/processed/changes.csv: one row per matched pair, added or removed paragraph.
+The two methods differ only in step 3 and its thresholds; masking for labels, matching
+and labelling are shared, so their outputs can be compared row for row (notebook 04).
+
+Writes data/processed/changes.csv (fuzzy) or changes_embedding.csv: one row per matched
+pair, added or removed paragraph.
 
 Run from the project root:
-    python -m src.diff                  # all pairs, write changes.csv
-    python -m src.diff --tickers MSFT   # some tickers: print only, no write
+    python -m src.diff                              # fuzzy, all pairs, write changes.csv
+    python -m src.diff --method embedding           # write changes_embedding.csv
+    python -m src.diff --tickers MSFT               # some tickers: print only, no write
 """
 
 import argparse
@@ -30,7 +38,11 @@ from src.config import ROOT, DATA_DIR
 
 PAIRS_PATH = DATA_DIR / "pairs.csv"
 PARAGRAPHS_PATH = DATA_DIR / "paragraphs.csv"
-CHANGES_PATH = DATA_DIR / "changes.csv"
+CHANGES_PATH = {"fuzzy": DATA_DIR / "changes.csv",
+                "embedding": DATA_DIR / "changes_embedding.csv"}
+# Written by src/embed.py: row k of the vectors is row k of the index
+EMBEDDINGS_INDEX_PATH = DATA_DIR / "embeddings_index.csv"
+EMBEDDINGS_MASKED_PATH = DATA_DIR / "embeddings_masked.npy"
 
 # Which paragraph kinds are compared. Tables are left out: their changes are number updates.
 COMPARE_KINDS = ["text"]
@@ -83,6 +95,26 @@ def mask(text):
 
     return re.sub(combined_pattern, "<XX>", text, flags=re.IGNORECASE)
 
+# Direction words. A first list from reading MSFT / JPM / XOM text, not complete
+# ("improved", "deteriorated", "up", "down" are not in it).
+DIRECTION = r"\b(?:increase[sd]?|decrease[sd]?|grew|grow|declined?|higher|lower|rose|fell|gains?|loss(?:es)?|(?:un)?favorabl[ey]|positively|negatively)\b"
+
+
+def mask_direction(text):
+    """Return text with direction words ("increased", "lower", ...) replaced by <DIR>.
+
+    Used for matching only, on top of mask(); never for labelling. Matching asks "is this
+    the same paragraph?", and a flipped direction doesn't change that. Without it, the
+    embedding matched "Xbox ... revenue increased 8%" to "Azure ... revenue increased 40%"
+    (0.872) over "Xbox ... revenue decreased 5%" (0.805): in a short sentence the verb
+    outweighed the subject. Labelling must still see the flip, so label() compares mask()
+    text, and "increased" -> "decreased" stays "reworded".
+
+    Side effect: very short template sentences become identical across segments ("Revenue
+    <DIR> <XX> or <XX>%."), so the same-section tie-break in match() decides between them.
+    """
+    return re.sub(DIRECTION, "<DIR>", text, flags=re.IGNORECASE)
+
 
 def similarity_matrix(old_masked, new_masked):
     """Return a 2-D array of scores, shape (len(old_masked), len(new_masked)), 0-100.
@@ -93,6 +125,24 @@ def similarity_matrix(old_masked, new_masked):
     # phrase ("condensed consolidated" -> "Condensed Consolidated", XOM) scored only 66.
     return process.cdist(old_masked, new_masked, scorer=fuzz.token_sort_ratio,
                          processor=utils.default_process)
+
+
+class EmbeddingStore:
+    """The masked paragraph vectors from src/embed.py, loaded once and looked up by
+    (accession_no, para_no). Vectors are normalized, so a dot product is the cosine."""
+
+    def __init__(self):
+        index = pd.read_csv(EMBEDDINGS_INDEX_PATH, dtype={"accession_no": str})
+        self.vectors = np.load(EMBEDDINGS_MASKED_PATH)
+        self.row_of = {(a, p): k for k, (a, p) in enumerate(zip(index["accession_no"], index["para_no"]))}
+
+    def vectors_for(self, paras, accession_no):
+        # A KeyError means a paragraph diff.py compares was never embedded: rerun src.embed
+        return self.vectors[[self.row_of[(accession_no, p["para_no"])] for p in paras]]
+
+    def scores(self, old, new, old_accession_no, new_accession_no):
+        """Cosine matrix, shape (len(old), len(new)), 0-1."""
+        return self.vectors_for(old, old_accession_no) @ self.vectors_for(new, new_accession_no).T
 
 
 # Minimum score for a match. Chosen by reading best-match pairs by score band (MSFT, JPM,
@@ -107,23 +157,38 @@ def similarity_matrix(old_masked, new_masked):
 # another segment's. So: 65 within a section, 80 across.
 # Remaining wrong partners are the known weakness of fuzzy matching, the baseline that
 # embedding-based matching is compared against.
-MIN_SCORE_SAME_SECTION = 65
-MIN_SCORE_OTHER_SECTION = 80
-
+#
 # Tie-break toward partners under the same heading, used only inside the assignment (the
 # reported score stays raw). Short template sentences ("Revenue increased $<XX> or <XX>%.")
 # are identical after masking under every MSFT segment, so without it the solver splits
 # ties across segments arbitrarily (one segment's sentence matched to another's). Small
 # enough that a paragraph that really moved (its true partner scores ~100 under the new
 # heading) still wins.
-SECTION_BONUS = 5
+FUZZY = {"min_same_section": 65, "min_other_section": 80, "section_bonus": 5}
+
+# Embedding thresholds, set the same way: one-to-one matches on MSFT, JPM, XOM, KO, the
+# same-section rate per 0.02 cosine band, then ~8 samples read per band (none from the
+# hand check in labels/, which is kept for evaluation).
+# - Same-section rate: ~20% below 0.76, 43-51% at 0.76-0.82, then a step to 71% at 0.84
+#   and 83-95% above 0.92. Fuzzy scores had no such step.
+# - Same section: 0.76-0.84 about half right (JPM lead-in sentences matched to their own
+#   bullets, debt vs equity underwriting); 0.84 5/8; 0.86 7/8 -> 0.86.
+# - Other section: 0.84-0.88 3/8, 0.88-0.92 2/8, 0.92-0.96 ~4/7 right, and no better
+#   higher up -> 0.92. Above that the score stops separating right from wrong: the errors
+#   are segment templates (XOM "Margin -" in Chemical vs Energy, MSFT opex in two
+#   segments), the correct ones mostly renamed or noisy headings. So cross-section
+#   precision tops out around 60%, a limit of the section labels, not of the score.
+# - Bonus 0.01: the fuzzy +5 rescaled to the compressed cosine range (most scores 0.8-1.0).
+# Small samples (8 per band): judgement calls, tested on the hand check, not tuned on it.
+EMBEDDING = {"min_same_section": 0.86, "min_other_section": 0.92, "section_bonus": 0.01}
 
 
-def match(scores, same_section):
+def match(scores, same_section, min_same_section, min_other_section, section_bonus):
     """Return a list of (i, j) pairs: old paragraph i matched with new paragraph j.
 
-    scores:        similarity_matrix() output, shape (n_old, n_new)
+    scores:        score matrix, shape (n_old, n_new): fuzzy (0-100) or cosine (0-1)
     same_section:  bool array, same shape: old i and new j sit under the same heading
+    thresholds and bonus are on the scale of `scores` (FUZZY or EMBEDDING above)
 
     Each i and each j appears at most once (one-to-one). A paragraph with no good partner
     is left out, and becomes "removed" (old) or "added" (new).
@@ -137,8 +202,8 @@ def match(scores, same_section):
     otherwise the solver could accept a worse eligible pair to make room for an
     ineligible one that we then throw away.
     """
-    eligible = np.where(same_section, scores >= MIN_SCORE_SAME_SECTION, scores >= MIN_SCORE_OTHER_SECTION)
-    allowed = np.where(eligible, scores + SECTION_BONUS * same_section, 0.0)
+    eligible = np.where(same_section, scores >= min_same_section, scores >= min_other_section)
+    allowed = np.where(eligible, scores + section_bonus * same_section, 0.0)
     rows, cols = linear_sum_assignment(allowed, maximize=True)
     # The solver always returns min(n_old, n_new) pairs; drop the ones it was forced into
     return [(int(i), int(j)) for i, j in zip(rows, cols) if eligible[i, j]]
@@ -203,15 +268,23 @@ def load_pair(pair, paragraphs):
             filing_paragraphs(paragraphs, pair["new_accession_no"]))
 
 
-def diff_pair(pair, paragraphs):
-    """All change rows for one pair: matched paragraphs, then removed, then added."""
+def diff_pair(pair, paragraphs, method="fuzzy", store=None):
+    """All change rows for one pair: matched paragraphs, then removed, then added.
+
+    method "fuzzy" or "embedding"; store is an EmbeddingStore (needed for "embedding").
+    """
     old, new = load_pair(pair, paragraphs)
     for p in old + new:
-        p["masked"] = mask(p["text"])
-    scores = similarity_matrix([p["masked"] for p in old], [p["masked"] for p in new])
+        p["masked"] = mask(p["text"])   # for label(): numbers masked, directions kept
+    if method == "fuzzy":
+        scores = similarity_matrix([p["masked"] for p in old], [p["masked"] for p in new])
+        thresholds, decimals = FUZZY, 1
+    else:
+        scores = store.scores(old, new, pair["old_accession_no"], pair["new_accession_no"])
+        thresholds, decimals = EMBEDDING, 3
     same_section = np.array([[same_heading(o["section"], n["section"]) for n in new] for o in old],
                             dtype=bool).reshape(len(old), len(new))
-    matches = match(scores, same_section)
+    matches = match(scores, same_section, **thresholds)
 
     base = {"ticker": pair["ticker"], "pair_type": pair["pair_type"],
             "old_period": pair["old_period_of_report"], "new_period": pair["new_period_of_report"],
@@ -223,7 +296,7 @@ def diff_pair(pair, paragraphs):
                 "old_section": o["section"] if o else None, "new_section": n["section"] if n else None,
                 "old_text": o["text"] if o else None, "new_text": n["text"] if n else None}
 
-    rows = [row(label(old[i], new[j]), old[i], new[j], round(float(scores[i, j]), 1))
+    rows = [row(label(old[i], new[j]), old[i], new[j], round(float(scores[i, j]), decimals))
             for i, j in matches]
     matched_old = {i for i, _ in matches}
     matched_new = {j for _, j in matches}
@@ -250,24 +323,28 @@ def print_report(changes, n_examples=2, n_chars=160):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--tickers", nargs="+", help="only these tickers: print, don't write")
+    parser.add_argument("--method", choices=["fuzzy", "embedding"], default="fuzzy",
+                        help="paragraph scoring (default fuzzy, the baseline)")
     args = parser.parse_args()
 
     pairs = pd.read_csv(PAIRS_PATH)
     paragraphs = pd.read_csv(PARAGRAPHS_PATH)
     if args.tickers:
         pairs = pairs[pairs["ticker"].isin(args.tickers)]
+    store = EmbeddingStore() if args.method == "embedding" else None
 
     rows = []
     for _, pair in pairs.iterrows():
-        rows.extend(diff_pair(pair, paragraphs))
+        rows.extend(diff_pair(pair, paragraphs, args.method, store))
     changes = pd.DataFrame(rows)
     print_report(changes)
 
+    out = CHANGES_PATH[args.method]
     if args.tickers:
-        print("\n--tickers given: changes.csv not written")
+        print(f"\n--tickers given: {out.name} not written")
     else:
-        changes.to_csv(CHANGES_PATH, index=False)
-        print(f"\nWrote {len(changes)} rows to {CHANGES_PATH.relative_to(ROOT)}")
+        changes.to_csv(out, index=False)
+        print(f"\nWrote {len(changes)} rows to {out.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

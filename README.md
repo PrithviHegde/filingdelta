@@ -35,7 +35,10 @@ data/processed/{ticker}/{period}_mdna_clean.txt   cleaned MD&A, one block per pa
 data/processed/paragraphs.csv               one row per paragraph, all filings: kind (text / heading / table), section, text
 data/processed/manifest.csv                 one row per filing: form, accession, acceptance time, fiscal year / quarter, file path, validation flags
 data/processed/pairs.csv                    which filing is compared with which (yoy, qoq, annual)
-data/processed/changes.csv                  one row per matched / added / removed paragraph per pair, with change label
+data/processed/changes.csv                  one row per matched / added / removed paragraph per pair, with change label (fuzzy matching)
+data/processed/changes_embedding.csv        same, with embedding matching
+data/processed/embeddings_*.npy             bge-small paragraph vectors: masked (for matching) and raw (for retrieval)
+data/processed/embeddings_index.csv         which paragraph each vector row belongs to
 data/processed/prices.csv                   daily adjusted closes: 11 tickers, SPY, sector ETFs
 data/processed/earnings.csv                 one row per filing: the earnings release (8-K Item 2.02) that preceded it
 data/processed/events.csv                   abnormal returns: filing / earnings x SPY / sector ETF x CAR window
@@ -43,12 +46,14 @@ labels/diff_handcheck.csv                   24 hand-annotated changes.csv rows (
 notebooks/01_explore_edgar.ipynb            exploration of EDGAR filings and section extraction, with findings
 notebooks/02_diff_sanity.ipynb              difflib baseline on MSFT (why paragraph matching must ignore order)
 notebooks/03_explore_diff.ipynb             building blocks of diff.py on one MSFT pair
+notebooks/04_embeddings_model.ipynb         embedding model tests, fuzzy vs embedding disagreements, threshold calibration
 src/config.py                               tickers, forms, SEC identity
 src/ingest.py                               ingestion pipeline: fetch filings, extract MD&A, save, write manifest
 src/validate.py                             flag MD&A that is too short, too long or doesn't start like MD&A
 src/clean.py                                clean MD&A and split it into labelled paragraphs
 src/pairs.py                                build pairs.csv from the manifest
 src/diff.py                                 match paragraphs between paired filings and label the changes
+src/embed.py                                embed every text paragraph (masked and raw)
 src/prices.py                               download daily prices (yfinance)
 src/earnings.py                             match each filing to its earnings release on SEC
 src/event_study.py                          event days, market model, cumulative abnormal returns
@@ -79,6 +84,8 @@ python -m src.clean                   # clean MD&A, write paragraphs.csv
 python -m src.pairs                   # build pairs.csv from the manifest
 python -m src.diff                    # match paragraphs per pair, write changes.csv (~1 min)
 python -m src.diff --tickers MSFT     # some tickers: print a report, don't write
+python -m src.embed                   # embed paragraphs (local model, a few minutes)
+python -m src.diff --method embedding # embedding matching, write changes_embedding.csv
 python -m src.prices                  # download prices, write prices.csv
 python -m src.earnings                # find each filing's earnings release, write earnings.csv
 python -m src.event_study             # abnormal returns, write events.csv
@@ -100,6 +107,8 @@ How far filings trail earnings decides what can be measured:
 | 1-2 trading days later | XOM, KO, PG 10-Qs |
 | 4-25 trading days later | CVX, JPM, MS, WMT, and every 10-K |
 
+**Embedding matching.** `src.embed` encodes every text paragraph with a local sentence-transformers model, `BAAI/bge-small-en-v1.5` (384 dimensions, 512-token input: truncates 0.2% of paragraphs, vs 1.4% for `all-MiniLM-L6-v2`). `src.diff --method embedding` scores pairs by cosine similarity instead of RapidFuzz, with the same one-to-one matching and labels. Before embedding, direction words ("increased", "lower", ...) are masked as well as numbers, for matching only: otherwise "Xbox revenue increased 8%" matched "Azure revenue increased 40%" over "Xbox revenue decreased 5%". Labels still see the flip (`reworded`). Compared with fuzzy, the two methods pick the same best partner for 89% of MSFT paragraphs; where they differ, embeddings fix topic confusion (M365 *Commercial* vs *Consumer*, one segment's gross margin vs another's), and the remaining disagreements are mostly ties between near-identical quarter / year-to-date copies. Embedding scores show a step in the same-section rate at cosine 0.84 that fuzzy scores lacked. Thresholds: 0.86 within a section, 0.92 across, +0.01 same-section tie-break. Result: 18,220 rows; 424 more paragraphs matched as reworded, 416 fewer each added and removed.
+
 ## Known issues and limitations
 
 - **Silent parser failures on large banks.** For BAC, WFC, C, GS, PNC and USB, `edgartools` section extraction either can't find 10-Q MD&A or returns the wrong section (e.g. BAC's share repurchase table in place of MD&A; WFC's financial statement notes). WFC's 10-K MD&A is in Exhibit 13. These banks are excluded for now, so the bank sector is thin. Details in `notebooks/01_explore_edgar.ipynb`.
@@ -111,7 +120,8 @@ How far filings trail earnings decides what can be measured:
 - **Earnings confound.** Some companies (e.g. MSFT, GOOGL, NVDA) file the 10-Q on the evening of their earnings release, so the filing's event day is also the earnings reaction day. Others file weeks after earnings (JPM, MS, WMT file 2-4 weeks after their quarter's results). Earnings dates need to be recorded per filing and controlled for.
 - **Small sample.** The 8-filing window gives only 3 yoy pairs per ticker (33 in total). Raising the 10-Q window is under consideration.
 - **Fuzzy matching has a precision / recall trade-off with no clean cut-off.** Best-match scores don't split into two clear groups: 60-80 mixes real rewrites with look-alike template sentences (MSFT's "X increased $N or N% driven by Y" under every segment, JPM's "Equity Markets revenue" vs "Fixed Income Markets revenue"). Thresholds were set by reading samples per score band: a match needs 65 within the same section, 80 across sections, and same-section partners get a small tie-break bonus. Some wrong partners remain in the 65-80 band (roughly 1 in 4 there), which inflates "reworded" and hides some added / removed paragraphs. This is the baseline that embeddings are compared against.
-- **Hand check of 24 change rows** (stratified by label, 9 tickers; 10 reworded, half of them from the 65-80 score band): 23 labels correct. The miss is a wrong partner at score 66 (JPM: a CECL footnote matched to an unrelated capital-ratio footnote). "Reworded" means the wording changed, not that the meaning did: some are grammar knock-ons of period updates (WMT "for both the three and six months" → "the three and nine months"). Judging materiality is left to the change classifier.
+- **Embedding matching shares two limits with fuzzy.** Cross-section matches are right only ~60% of the time even above cosine 0.92, and a higher score doesn't help: the errors are segment templates (XOM "Margin –" in Chemical vs Energy Products; MSFT operating expenses in two segments) that read alike to any text-similarity method, while the correct ones are mostly renamed or mislabelled headings. Comparing headings fuzzily instead of exactly would help both methods (backlog). Also, masking directions makes very short template sentences identical across segments ("Revenue <DIR> <XX> or <XX>%."), so the same-section tie-break decides those. Thresholds come from ~8 samples per score band: judgement calls, kept apart from the hand-check rows used to evaluate.
+- **Hand check of 24 change rows** (stratified by label, 9 tickers; 10 reworded, half of them from the 65-80 score band), then re-checked against embedding matching. Fuzzy gets 20 of 24 right. One miss is a wrong partner at score 66 (JPM: a CECL footnote matched to an unrelated capital-ratio footnote). The other three were first marked correct and relabelled after embedding matching found their partners: two "added" JPM paragraphs (card income, a segment cross-reference) and one "removed" KO paragraph (quarterly SG&A) are rewrites of paragraphs in the other filing, scored 0.89-0.98 by embeddings but below the fuzzy thresholds. The first verdicts had trusted fuzzy's "no partner": added / removed rows have to be labelled by searching the other filing, not by checking the tool's output. Embedding matching makes the same decision as fuzzy on the other 20 rows, so it gets all 24 right (one, the cross-reference, is borderline). Two caveats: 24 rows is a direction, not a significant difference, and the rows were sampled from fuzzy's output, which can't show fuzzy misses beyond its 6 added / removed rows. "Reworded" means the wording changed, not that the meaning did: some are grammar knock-ons of period updates (WMT "for both the three and six months" → "the three and nine months"). Judging materiality is left to the change classifier.
 - **No "moved" label.** A flag for "matched paragraph now under a different heading" was tried and dropped: section labels from clean.py are too noisy (renamed headings, a "Table of Contents" section, headings attached to the wrong paragraphs), and all 3 flags in the hand check were wrong. JPM alone had 391, because its 10-Qs repeat sentences under both "Quarterly results" and "Year-to-date results".
 - **The filing reaction can't be separated from earnings for GOOGL, MSFT, NVDA (and COP 10-Qs)**: they file the 10-Q on the same day as the results, so the filing's CAR is the earnings CAR. 34% of filings have the earnings day inside their [0,+1] window, 50% inside [−1,+1] (`earnings_in_window` in events.csv). Tests of the filing text have to use the separable filings or control for the earnings reaction.
 - **Neither benchmark fits every ticker.** Over 2025-26, consumer staples and energy moved almost independently of the S&P 500 (estimated betas vs SPY: KO 0.04, PG −0.02, XOM 0.23; XLP itself −0.03 since mid-2025), so SPY removes little of their market-wide moves and the sector model is more informative. For tech the sector model is biased the other way: MSFT and NVDA are a large part of XLK (as XOM is of XLE and GOOGL of XLC), so part of their own move is subtracted out. Market-wide shocks still leak in: MS's 10-Q event window (2024-11-05/06) contains the post-election bank rally, +9.5% vs SPY but +3.8% vs XLF.
@@ -128,5 +138,7 @@ How far filings trail earnings decides what can be measured:
 - [x] Paragraph-level diffing between quarters (order-independent matching)
 - [x] Separate meaningful language changes from number updates
 - [x] Stock price data, earnings dates and event-study setup
+- [x] Paragraph embeddings (local bge-small) and embedding-based matching vs the fuzzy baseline
+- [x] Evaluate fuzzy vs embedding matching on the hand-checked rows (fuzzy 20 / 24, embedding 24 / 24)
 - [ ] RAG / LLM layer to explain what changed
 - [ ] Evaluation and explainability
