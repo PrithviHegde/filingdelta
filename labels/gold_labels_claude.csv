@@ -1,0 +1,51 @@
+item_id,topic,materiality,direction,forward_looking,flag,reason,note
+0000895421-25-000440|0000895421-26-000212|104|,revenue_demand,0,not_applicable,False,ambiguous,Prior-year quarter's investment banking revenue sentence dropped.,"Probably superseded by this quarter's version, which matching missed."
+0000104169-24-000178|0000104169-25-000191|8|,other,0,not_applicable,False,,Dropped boilerplate that segments keep consistent contribution rates.,
+0001652044-25-000043|0001652044-26-000048|89|,capital_liquidity,0,not_applicable,False,,Last year's April dividend declaration bullet dropped; superseded by the new period.,
+0001163165-25-000012|0001163165-26-000009||131,revenue_demand,0,not_applicable,False,,Added 'production increases were partly offset by normal field decline'; routine.,
+0000895421-25-000343|0000895421-26-000121|124|130,credit_risk,2,more_negative,False,ambiguous,Provision driver changed from 'portfolio growth' to 'certain commercial real estate loans and increased macroeconomic uncertainty'.,"1 vs 2: provision size unchanged, but specific CRE loans are a new credit concern."
+0000093410-25-000009|0000093410-26-000078|119|112,revenue_demand,0,not_applicable,False,,Updated refinery input figures; added 'from the year-ago period'.,
+0001163165-25-000025|0001163165-26-000018|30|29,other,1,not_applicable,False,ambiguous,'Achieved critical milestones' became 'project achieving 50% completion' at Willow.,Topic: capital projects have no category; other.
+0000034088-25-000042|0000034088-26-000093||39,accounting,0,not_applicable,False,ambiguous,Page-split fragment of the Identified Items definition ('impact of at least $250 million').,"Cleaning artifact, not a whole paragraph."
+0000093410-24-000059|0000093410-25-000108|82|,revenue_demand,0,not_applicable,False,,Prior-year quarter's refinery input explanation dropped; superseded by the new period.,
+0001045810-25-000116|0001045810-25-000209|77|78,capital_liquidity,1,not_applicable,False,ambiguous,Dropped 'timing of cash collections' as a driver of operating cash flow.,0 vs 1: a secondary driver dropped.
+0000019617-24-000611|0001628280-25-048859||245,accounting,0,not_applicable,False,ambiguous,"Footnote on where tax-equivalent adjustments are recognised, 'in CIB and Corporate'.",Likely a reworded version of an existing footnote that matching missed.
+0000080424-25-000245|0000080424-26-000256||31,strategy_mna,1,neutral_or_mixed,False,ambiguous,"Added completed $3.9 billion acquisition of Thorne, 'not material to the Company'.","1 vs 2: new acquisition, but the company calls it not material."
+0001045810-25-000023|0001045810-26-000021|11|,revenue_demand,1,neutral_or_mixed,True,ambiguous,Dropped 'demand estimates ... can be incorrect' together with 'increased demand for our Data Center systems'.,Removed both a risk caveat and a positive demand statement; possibly rewritten elsewhere.
+0001163165-25-000025|0001163165-26-000018|13|10,revenue_demand,2,more_negative,False,,Production 'an increase of 487 MBOED' became 'a decrease of 80 MBOED'; adjusted growth reversed to a decline.,
+0000104169-24-000178|0000104169-25-000191|79|79,costs_margins,1,more_negative,False,,"Opex drivers changed from higher variable pay to 'associate wage investments, lower fuel sales and higher ... claims expense'.",
+0000950170-25-061046|0001193125-26-191507|152|,legal_regulatory,0,not_applicable,True,,"Dropped the Pillar Two global minimum tax paragraph, which expected no material impact.",
+0000034088-25-000010|0000034088-26-000045|111|63,other,2,neutral_or_mixed,True,,'Force majeure was lifted in Mozambique'; Golden Pass completed but first LNG moved to 'first quarter of 2026'.,Mixed: progress plus a slipped start date. Topic: capital projects have no category.
+0001045810-26-000052|0001045810-26-000075||82,capital_liquidity,1,not_applicable,False,,"New financing cash flow paragraph citing repurchases, dividends, 'a payment related to Groq', offset by debt issuance.",
+0000021344-25-000029|0000021344-25-000061||158,capital_liquidity,0,not_applicable,False,,Q2 filing adds the six-month investing cash flow paragraph.,Standard year-to-date addition.
+0000104169-24-000178|0000104169-25-000191||24,accounting,0,not_applicable,False,,Added footnote defining gross profit.,
+0001652044-25-000043|0001652044-26-000048|3|3,accounting,1,not_applicable,False,,Added 'centralized certain AI-related research and development ... reported in Alphabet-level activities'.,Segment reporting change.
+0000950170-24-118967|0000950170-25-010491|96|135,costs_margins,1,not_applicable,False,,G&A driver changed from 'Gaming ... Activision Blizzard acquisition' to 'investments in corporate functions'.,
+0000080424-25-000037|0000080424-26-000060|128|136,revenue_demand,1,neutral_or_mixed,False,,FX turned 'favorable'; IMEA share losses dropped; Latin America growth added; market share 'unchanged'.,
+0000080424-25-000013|0000080424-25-000037|59|,costs_margins,1,more_positive,False,ambiguous,Dropped '20 basis points of higher transportation services costs' from the cost drivers.,Fragment of a list; 0 vs 1.
+0000895421-25-000440|0000895421-26-000212|35|34,credit_risk,1,neutral_or_mixed,False,,Provision drivers now 'certain specific commercial real estate and corporate loans'; macro outlook no longer cited.,
+0000104169-25-000021|0000104169-26-000055|65|64,revenue_demand,1,more_positive,False,,Comps now driven by 'average ticket and transactions ... strength in all merchandise categories'; added Walmart+ engagement.,
+0001652044-26-000048|0001652044-26-000071|130|129,costs_margins,0,not_applicable,False,,Q2 adds the six-month comparison; same drivers.,
+0000104169-25-000090|0000104169-25-000137|47|48,capital_liquidity,1,not_applicable,False,,Six-month cash flow adds 'lower cash tax payments' as a driver.,
+0000950170-24-118967|0000950170-25-010491|69|102,revenue_demand,1,not_applicable,False,,Added driver 'driven by a decline in Industry Solutions'.,
+0000034088-25-000010|0000034088-26-000045|47|,other,0,not_applicable,False,,Dropped fragment of the third-party modelling disclaimer.,
+0000019617-25-000615|0001628280-25-048859|989|994,accounting,1,neutral_or_mixed,False,,Added that the liability increase was 'driven by continued growth in rewards points ... that has outpaced redemptions'.,
+0000080424-25-000037|0000080424-26-000060|109|113,revenue_demand,2,more_positive,False,bad_match,'Net sales decreased 2% to $11.2 billion' vs 'increased 11% to $3.9 billion'.,"Old is the nine-month figure, new the quarter: different periods matched."
+0000021344-24-000060|0001628280-25-046054|142|,other,0,not_applicable,False,,Period heading line dropped ('Nine Months Ended ... versus ...').,Heading tagged as text.
+0001163165-25-000012|0001163165-26-000009|36|39,macro,0,not_applicable,False,,Shortened the list of factors behind commodity prices; 'since 2022' became 'since 2023'.,
+0000034088-24-000068|0000034088-25-000061|124|115,capital_liquidity,0,not_applicable,False,,Updated investing cash flow figures; dropped the M&A cash line.,
+0000021344-25-000061|0001628280-25-046054|126|129,strategy_mna,1,more_negative,False,ambiguous,Added 'a charge of $393 million related to certain operations held for sale in Nigeria' and a Ghana refranchising charge.,1 vs 2: sizeable new divestiture charge.
+0000093410-25-000019|0000093410-26-000113|109|107,costs_margins,1,not_applicable,False,,Pension cost driver changed: 'partially offset by higher interest cost' replaces lower actuarial loss amortization.,
+0000093410-25-000019|0000093410-26-000113||35,macro,2,more_negative,True,,"New Middle East paragraph: Leviathan 'temporarily curtailed', production curtailments, 'potential for continued escalation'.",
+0001045810-25-000116|0001045810-26-000052|77|80,capital_liquidity,1,not_applicable,False,ambiguous,Dropped 'timing of cash collections' as a driver of operating cash flow.,Same change as item 10.
+0001045810-25-000209|0001045810-26-000075|55|59,costs_margins,0,not_applicable,False,,Cost of revenue definition reformatted; dropped 'costs for license and development and service arrangements'.,
+0001163165-24-000052|0001163165-25-000058|61|,strategy_mna,0,not_applicable,False,,Prior-year gain on dispositions explanation dropped; superseded.,
+0000019617-24-000611|0001628280-25-048859|138|,credit_risk,0,not_applicable,False,ambiguous,Prior-year charge-off sentence ('seasoning of newer vintages ... credit normalization') dropped.,"Probably superseded by this quarter's version, which matching missed."
+0000895421-25-000440|0000895421-26-000212||14,revenue_demand,0,not_applicable,False,,Added bullet stating net revenues and pre-tax income.,
+0001652044-25-000062|0001652044-26-000071||215,legal_regulatory,2,more_negative,False,,"New disclosure: '$17.4 billion' of short-term accrued legal and regulatory fines, 'primarily ... EC fines'.",
+0001652044-25-000062|0001652044-26-000071|203|184,capital_liquidity,0,not_applicable,False,,"Dropped '(also referred to as ""fit-outs"")'.",
+0000021344-25-000061|0001628280-26-050503|114|116,macro,2,more_positive,True,,Expected FX impact on full-year operating income flipped from 'unfavorable' to 'favorable'.,
+0001163165-25-000042|0001163165-25-000058|9|9,costs_margins,1,not_applicable,True,,Added split of the $1 billion target: '$0.8 billion ... G&A reductions ...' and '$0.2 billion ... margin expansion'.,
+0001652044-26-000048|0001652044-26-000071|211|222,capital_liquidity,0,not_applicable,True,,Funding commitment updated after the $10 billion was funded; dropped 'We expect to fund'.,
+0000950170-25-061046|0001193125-26-191507||47,accounting,1,not_applicable,False,,New non-GAAP measures that 'exclude net gains and losses from investments in OpenAI'.,
+0000019617-25-000615|0001628280-25-048859|299|306,revenue_demand,0,not_applicable,False,,Added 'and' at the end of a bullet.,

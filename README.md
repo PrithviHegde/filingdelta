@@ -42,7 +42,11 @@ data/processed/embeddings_index.csv         which paragraph each vector row belo
 data/processed/prices.csv                   daily adjusted closes: 11 tickers, SPY, sector ETFs
 data/processed/earnings.csv                 one row per filing: the earnings release (8-K Item 2.02) that preceded it
 data/processed/events.csv                   abnormal returns: filing / earnings x SPY / sector ETF x CAR window
-labels/diff_handcheck.csv                   24 hand-annotated changes.csv rows (label correct? + note), seed for the gold set
+labels/diff_handcheck.csv                   24 hand-annotated changes.csv rows (label correct? + note): diff matching check
+labels/guidelines.md                        annotation rules for the change classifier (the same rules as its prompt)
+labels/gold_items.csv                       50 gold items (35 dev / 15 test), sampled by src/sample_gold.py
+labels/gold_labels.csv                      adjudicated gold labels, with both annotators' original labels
+src/sample_gold.py                          reproducible stratified sample of gold items
 notebooks/01_explore_edgar.ipynb            exploration of EDGAR filings and section extraction, with findings
 notebooks/02_diff_sanity.ipynb              difflib baseline on MSFT (why paragraph matching must ignore order)
 notebooks/03_explore_diff.ipynb             building blocks of diff.py on one MSFT pair
@@ -109,6 +113,8 @@ How far filings trail earnings decides what can be measured:
 
 **Embedding matching.** `src.embed` encodes every text paragraph with a local sentence-transformers model, `BAAI/bge-small-en-v1.5` (384 dimensions, 512-token input: truncates 0.2% of paragraphs, vs 1.4% for `all-MiniLM-L6-v2`). `src.diff --method embedding` scores pairs by cosine similarity instead of RapidFuzz, with the same one-to-one matching and labels. Before embedding, direction words ("increased", "lower", ...) are masked as well as numbers, for matching only: otherwise "Xbox revenue increased 8%" matched "Azure revenue increased 40%" over "Xbox revenue decreased 5%". Labels still see the flip (`reworded`). Compared with fuzzy, the two methods pick the same best partner for 89% of MSFT paragraphs; where they differ, embeddings fix topic confusion (M365 *Commercial* vs *Consumer*, one segment's gross margin vs another's), and the remaining disagreements are mostly ties between near-identical quarter / year-to-date copies. Embedding scores show a step in the same-section rate at cosine 0.84 that fuzzy scores lacked. Thresholds: 0.86 within a section, 0.92 across, +0.01 same-section tie-break. Result: 18,220 rows; 424 more paragraphs matched as reworded, 416 fewer each added and removed.
 
+**Gold set for the change classifier.** 50 changes (reworded / added / removed), sampled with a fixed seed and a per-ticker quota (2 reworded, 1 added, 1 removed, plus 6 reworded), excluding rows seen while writing the prompt; split 35 dev / 15 test before labelling. Fields: topic, materiality (0 / 1 / 2), direction, forward_looking, from an investor's point of view, by the written rules in `labels/guidelines.md`. Two annotators labelled independently: the author, and Claude (an LLM) as second annotator, each blind to the other. Agreement on 49 items (one excluded as a matching error): forward_looking 100% (Cohen's kappa 1.00), topic 82% (0.79), direction 69% (0.48), materiality 61% (0.41; 96% within one level). Nearly all materiality disagreements went one way (the author rated higher on 16 items, lower on 3). Four rules settled 19 of the 32 disagreements and were added to the guidelines: materiality 2 is strict (new or removed risk, changed outlook, reversed trend, new legal matter, major event); a paragraph removed or added only because the new filing carries its own version is 0 (flagged as a likely matching miss); topic is the paragraph's subject, `other` only when nothing fits; direction is `not_applicable` only at materiality 0. The other 13 were adjudicated item by item. Result: 49 scored items (23 materiality 0, 21 materiality 1, 5 materiality 2) plus one `bad_match`.
+
 ## Known issues and limitations
 
 - **Silent parser failures on large banks.** For BAC, WFC, C, GS, PNC and USB, `edgartools` section extraction either can't find 10-Q MD&A or returns the wrong section (e.g. BAC's share repurchase table in place of MD&A; WFC's financial statement notes). WFC's 10-K MD&A is in Exhibit 13. These banks are excluded for now, so the bank sector is thin. Details in `notebooks/01_explore_edgar.ipynb`.
@@ -127,6 +133,7 @@ How far filings trail earnings decides what can be measured:
 - **Neither benchmark fits every ticker.** Over 2025-26, consumer staples and energy moved almost independently of the S&P 500 (estimated betas vs SPY: KO 0.04, PG −0.02, XOM 0.23; XLP itself −0.03 since mid-2025), so SPY removes little of their market-wide moves and the sector model is more informative. For tech the sector model is biased the other way: MSFT and NVDA are a large part of XLK (as XOM is of XLE and GOOGL of XLC), so part of their own move is subtracted out. Market-wide shocks still leak in: MS's 10-Q event window (2024-11-05/06) contains the post-election bank rally, +9.5% vs SPY but +3.8% vs XLF.
 - **XOM changed registrant on 2026-07-01** (redomiciled to Texas; ExxonMobil Holdings Corp, CIK 2115436, is the successor). Its earnings 8-K for Q2 2026 is under the new CIK, the Q2 10-Q still under the old one (34088). `src/earnings.py` searches both (`EXTRA_CIKS` in config); future XOM 10-Qs will need the new CIK in ingestion too.
 - **Half-day sessions** (day before July 4, day after Thanksgiving, Christmas Eve) close at 1pm, but the event-day rule assumes 4pm. No filing in the sample was accepted on one.
+- **The gold set is small and its second annotator is an LLM.** With only 5 materiality-2 items, accuracy on that class is noisy (a test split of 14 scored items holds even fewer), so classifier results should be reported with per-class counts and the within-one-level rate, not as a single accuracy. The second annotator was Claude, not a second person, a common compromise for a one-person project; Claude also drafted the guidelines, so its labels may follow the written rules more literally than a second human would.
 - **MD&A length grows through the fiscal year** (Q1 shortest), need to check if this is actually a real trend, or just an anomaly. If it is, it has to be normalized.
 
 ## Roadmap
@@ -140,5 +147,7 @@ How far filings trail earnings decides what can be measured:
 - [x] Stock price data, earnings dates and event-study setup
 - [x] Paragraph embeddings (local bge-small) and embedding-based matching vs the fuzzy baseline
 - [x] Evaluate fuzzy vs embedding matching on the hand-checked rows (fuzzy 20 / 24, embedding 24 / 24)
+- [x] Gold set for change classification: 50 items, two blind annotators, adjudicated
+- [ ] LLM change classification (local model), evaluated on the gold set
 - [ ] RAG / LLM layer to explain what changed
 - [ ] Evaluation and explainability

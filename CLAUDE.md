@@ -38,7 +38,11 @@ notebooks/01_explore_edgar.ipynb   Day 1 EDGAR exploration and findings
 notebooks/02_diff_sanity.ipynb     difflib baseline on MSFT (motivates order-independent matching)
 notebooks/03_explore_diff.ipynb    step-by-step build-up of mask() / similarity_matrix() on one MSFT pair
 notebooks/04_embeddings_model.ipynb   embedding tests, fuzzy vs embedding disagreements, threshold calibration
-labels/diff_handcheck.csv          24 hand-annotated changes.csv rows (seed for the gold set)
+labels/diff_handcheck.csv          24 hand-annotated changes.csv rows (diff matching check)
+labels/guidelines.md               annotation rules for the change classifier (same rules as the prompt, v4)
+labels/gold_items.csv              50 gold items (35 dev / 15 test) from src/sample_gold.py, texts copied in
+labels/gold_labels.csv             adjudicated gold labels (final + both annotators' columns + resolution); gold_labels_prithvi.csv / gold_labels_claude.csv are the raw blind labels
+src/sample_gold.py                 reproducible stratified sample of gold items
 ```
 
 ## Commands
@@ -56,6 +60,7 @@ python -m src.diff                    # write changes.csv (~1 min)
 python -m src.diff --tickers MSFT     # print report only, no write
 python -m src.embed                   # embed paragraphs (local model); --tickers: check only
 python -m src.diff --method embedding # write changes_embedding.csv (needs src.embed first)
+python -m src.sample_gold             # write labels/gold_items.csv; --dry-run: print only
 python -m src.prices                  # download prices (network)
 python -m src.earnings                # match filings to earnings 8-Ks (network); --tickers: print only
 python -m src.event_study             # offline; --tickers: print only
@@ -79,7 +84,7 @@ python -m src.event_study             # offline; --tickers: print only
 - **Event study:** market model (OLS, simple returns on adjusted closes) vs SPY (primary) and sector ETF (`SECTOR_ETF` in config; GOOGL -> XLC), estimation window -250 to -30 trading days (need >= 200 days), CARs [0,+1], [-1,+1], [0,+5], SCAR = CAR / (sigma * sqrt(L)). Event day = acceptance day, or next trading day if at/after 16:00 ET (np.searchsorted on the price calendar, so weekends / market holidays roll forward).
 - **Earnings dates:** from SEC, not a price vendor: latest 8-K with Item 2.02 accepted after period end and at/before the filing, within 60 days; header acceptance time. Same CARs computed for the earnings event; `earnings_in_window` / `trading_days_after_earnings` in events.csv mark confounded filing windows.
 
-## Status (as of 2026-11-16)
+## Status (as of 2026-11-20)
 
 - Day 1 done: ingestion for 11 tickers x 8 filings (88 MD&A files in `data/processed/`).
 - Day 2 task 1 done (manifest + pairs), run against SEC: manifest 88 rows (66 10-Q, 22 10-K, no amendments, no nulls, no fiscal-quarter warnings); pairs.csv 78 pairs (11 annual, 34 qoq, 33 yoy; MSFT has 4 qoq). Fiscal labels and acceptance times checked by hand for all tickers.
@@ -89,7 +94,9 @@ python -m src.event_study             # offline; --tickers: print only
 - Day 2 task 5 done: prices.csv (856 trading days, 2023-06-12 to 2026-11-06, 17 symbols, no gaps), earnings.csv (88 of 88 filings matched), events.csv (1,056 rows). One MSFT CAR recomputed independently (10-K 2025-07-30: event day 07-31, beta 0.918, CAR[0,+1] +4.0%); event-day rule tested on after-close, pre-market, Good Friday, July 4, Saturday.
 - Day 3 (in progress): embed.py run (19,305 x 384, masked + raw); diff.py --method embedding written and run: 18,220 rows, vs fuzzy +424 reworded, -416 added, -416 removed; fuzzy output verified identical after the refactor. Fuzzy and embedding pick the same best partner for 954 of 1,071 MSFT paragraphs.
 - Day 3 evaluation done: on the 24 hand-checked rows, same decision on 20; embedding right on the other 4 (fixes the JPM CECL false match; finds partners for JPM card income, JPM cross-reference, KO SG&A). Caveat: rows sampled from fuzzy output.
-- Next: Day 4 (LLM change classification, gold set ~50 pairs). Label added/removed rows by searching the other filing. Details in `docs/plan.md`.
+- Day 4 so far: local model qwen3.5:9b via Ollama (think=False, temperature 0, seed 42, num_ctx 8192, num_predict 300; structured output via Pydantic JSON schema). Prompt v1 -> v4 in notebooks/05_classify.ipynb; change_kind field dropped (neither annotators nor model applied it consistently). Thinking mode ruled out (deliberated past 3,000 tokens on one item). Smoke test (5 dev items): 12/20 fields agree with the author's labels at v1, 18/20 at v3. ~4-5 s per item no-think -> ~12 h for 9,687 items.
+- Gold set done: labels/gold_labels.csv, 49 scored + 1 bad_match; inter-annotator kappa topic 0.79, materiality 0.41, direction 0.48, forward_looking 1.00.
+- Next: move classifier into src/classify.py (resumable, saves raw outputs, records failures), score qwen3.5:9b on the dev split, compare gemma4:12b and few-shot on dev; test split once at the end. Labelling sheet: Google Sheet 'FilingDelta gold set labels' (author's Drive).
 
 ## Known data quirks
 

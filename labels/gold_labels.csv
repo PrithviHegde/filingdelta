@@ -1,0 +1,51 @@
+item_id,split,topic,materiality,direction,forward_looking,flag,note,resolution,prithvi_topic,prithvi_materiality,prithvi_direction,prithvi_forward_looking,claude_topic,claude_materiality,claude_direction,claude_forward_looking
+0000895421-25-000440|0000895421-26-000212|104|,dev,revenue_demand,0,not_applicable,false,ambiguous,superseded; likely matching miss,rule: superseded -> 0,revenue_demand,1,more_negative,false,revenue_demand,0,not_applicable,false
+0000104169-24-000178|0000104169-25-000191|8|,dev,other,0,not_applicable,false,,,agreed,other,0,not_applicable,false,other,0,not_applicable,false
+0001652044-25-000043|0001652044-26-000048|89|,test,capital_liquidity,0,not_applicable,false,,,agreed,capital_liquidity,0,not_applicable,false,capital_liquidity,0,not_applicable,false
+0001163165-25-000012|0001163165-26-000009||131,dev,revenue_demand,0,not_applicable,false,,,rule: topic = subject,other,0,not_applicable,false,revenue_demand,0,not_applicable,false
+0000895421-25-000343|0000895421-26-000121|124|130,dev,credit_risk,1,more_negative,false,,,adjudicated,credit_risk,1,neutral_or_mixed,false,credit_risk,2,more_negative,false
+0000093410-25-000009|0000093410-26-000078|119|112,test,revenue_demand,0,not_applicable,false,,,rule: topic = subject,other,0,not_applicable,false,revenue_demand,0,not_applicable,false
+0001163165-25-000025|0001163165-26-000018|30|29,dev,strategy_mna,1,neutral_or_mixed,false,,,rule: capital projects -> strategy_mna,outlook_guidance,1,neutral_or_mixed,false,other,1,not_applicable,false
+0000034088-25-000042|0000034088-26-000093||39,dev,accounting,0,not_applicable,false,,,agreed,accounting,0,not_applicable,false,accounting,0,not_applicable,false
+0000093410-24-000059|0000093410-25-000108|82|,dev,revenue_demand,0,not_applicable,false,ambiguous,superseded; likely matching miss,rule: superseded -> 0,other,1,neutral_or_mixed,false,revenue_demand,0,not_applicable,false
+0001045810-25-000116|0001045810-25-000209|77|78,test,capital_liquidity,1,neutral_or_mixed,false,,,adjudicated,capital_liquidity,0,not_applicable,false,capital_liquidity,1,not_applicable,false
+0000019617-24-000611|0001628280-25-048859||245,dev,accounting,0,not_applicable,false,ambiguous,superseded; likely matching miss,rule: superseded -> 0,accounting,1,not_applicable,false,accounting,0,not_applicable,false
+0000080424-25-000245|0000080424-26-000256||31,dev,strategy_mna,1,neutral_or_mixed,false,,,rule: strict 2,strategy_mna,2,more_positive,false,strategy_mna,1,neutral_or_mixed,false
+0001045810-25-000023|0001045810-26-000021|11|,dev,revenue_demand,1,neutral_or_mixed,true,ambiguous,risk caveat and positive demand statement both removed; probably rewritten elsewhere,adjudicated,revenue_demand,2,neutral_or_mixed,true,revenue_demand,1,neutral_or_mixed,true
+0001163165-25-000025|0001163165-26-000018|13|10,dev,revenue_demand,2,more_negative,false,,,agreed,revenue_demand,2,more_negative,false,revenue_demand,2,more_negative,false
+0000104169-24-000178|0000104169-25-000191|79|79,test,costs_margins,1,more_negative,false,,,adjudicated,costs_margins,2,more_positive,false,costs_margins,1,more_negative,false
+0000950170-25-061046|0001193125-26-191507|152|,dev,legal_regulatory,0,not_applicable,true,,,adjudicated,legal_regulatory,1,not_applicable,true,legal_regulatory,0,not_applicable,true
+0000034088-25-000010|0000034088-26-000045|111|63,dev,strategy_mna,2,neutral_or_mixed,true,,,rule: capital projects -> strategy_mna,strategy_mna,2,neutral_or_mixed,true,other,2,neutral_or_mixed,true
+0001045810-26-000052|0001045810-26-000075||82,test,capital_liquidity,1,neutral_or_mixed,false,,,agreed,capital_liquidity,1,neutral_or_mixed,false,capital_liquidity,1,not_applicable,false
+0000021344-25-000029|0000021344-25-000061||158,dev,capital_liquidity,0,not_applicable,false,ambiguous,superseded; likely matching miss,rule: superseded -> 0,capital_liquidity,1,not_applicable,false,capital_liquidity,0,not_applicable,false
+0000104169-24-000178|0000104169-25-000191||24,dev,accounting,0,not_applicable,false,,,agreed,accounting,0,not_applicable,false,accounting,0,not_applicable,false
+0001652044-25-000043|0001652044-26-000048|3|3,test,accounting,1,neutral_or_mixed,false,,,adjudicated,other,1,not_applicable,false,accounting,1,not_applicable,false
+0000950170-24-118967|0000950170-25-010491|96|135,test,costs_margins,1,neutral_or_mixed,false,,,rule: strict 2,costs_margins,2,more_positive,false,costs_margins,1,not_applicable,false
+0000080424-25-000037|0000080424-26-000060|128|136,dev,revenue_demand,1,neutral_or_mixed,false,,,rule: strict 2,revenue_demand,2,neutral_or_mixed,false,revenue_demand,1,neutral_or_mixed,false
+0000080424-25-000013|0000080424-25-000037|59|,dev,costs_margins,1,more_positive,false,,,adjudicated,costs_margins,1,neutral_or_mixed,false,costs_margins,1,more_positive,false
+0000895421-25-000440|0000895421-26-000212|35|34,dev,credit_risk,1,neutral_or_mixed,false,,,adjudicated,credit_risk,2,more_positive,false,credit_risk,1,neutral_or_mixed,false
+0000104169-25-000021|0000104169-26-000055|65|64,dev,revenue_demand,1,more_positive,false,,,adjudicated,revenue_demand,1,more_negative,false,revenue_demand,1,more_positive,false
+0001652044-26-000048|0001652044-26-000071|130|129,dev,costs_margins,0,not_applicable,false,,,agreed,costs_margins,0,not_applicable,false,costs_margins,0,not_applicable,false
+0000104169-25-000090|0000104169-25-000137|47|48,dev,capital_liquidity,1,neutral_or_mixed,false,,,rule: materiality >= 1 -> has a direction,capital_liquidity,1,not_applicable,false,capital_liquidity,1,not_applicable,false
+0000950170-24-118967|0000950170-25-010491|69|102,dev,revenue_demand,1,neutral_or_mixed,false,,,adjudicated,revenue_demand,1,more_negative,false,revenue_demand,1,not_applicable,false
+0000034088-25-000010|0000034088-26-000045|47|,test,other,0,not_applicable,false,,,agreed,other,0,not_applicable,false,other,0,not_applicable,false
+0000019617-25-000615|0001628280-25-048859|989|994,dev,accounting,1,neutral_or_mixed,false,,,adjudicated,other,1,neutral_or_mixed,false,accounting,1,neutral_or_mixed,false
+0000080424-25-000037|0000080424-26-000060|109|113,dev,,,,,bad_match,"old is the nine-month figure, new the quarter",adjudicated,revenue_demand,2,neutral_or_mixed,false,revenue_demand,2,more_positive,false
+0000021344-24-000060|0001628280-25-046054|142|,test,other,0,not_applicable,false,,,agreed,other,0,not_applicable,false,other,0,not_applicable,false
+0001163165-25-000012|0001163165-26-000009|36|39,dev,macro,0,not_applicable,false,,,agreed,macro,0,not_applicable,false,macro,0,not_applicable,false
+0000034088-24-000068|0000034088-25-000061|124|115,test,capital_liquidity,0,not_applicable,false,,,agreed,capital_liquidity,0,not_applicable,false,capital_liquidity,0,not_applicable,false
+0000021344-25-000061|0001628280-25-046054|126|129,dev,strategy_mna,1,more_negative,false,,,rule: strict 2,strategy_mna,2,more_negative,false,strategy_mna,1,more_negative,false
+0000093410-25-000019|0000093410-26-000113|109|107,dev,costs_margins,1,neutral_or_mixed,false,,,agreed,costs_margins,1,neutral_or_mixed,false,costs_margins,1,not_applicable,false
+0000093410-25-000019|0000093410-26-000113||35,dev,macro,2,more_negative,true,,,agreed,macro,2,more_negative,true,macro,2,more_negative,true
+0001045810-25-000116|0001045810-26-000052|77|80,dev,capital_liquidity,1,neutral_or_mixed,false,,,adjudicated,capital_liquidity,0,not_applicable,false,capital_liquidity,1,not_applicable,false
+0001045810-25-000209|0001045810-26-000075|55|59,test,costs_margins,0,not_applicable,false,,,agreed,costs_margins,0,not_applicable,false,costs_margins,0,not_applicable,false
+0001163165-24-000052|0001163165-25-000058|61|,dev,strategy_mna,0,not_applicable,false,ambiguous,superseded; likely matching miss,rule: superseded -> 0,strategy_mna,1,not_applicable,false,strategy_mna,0,not_applicable,false
+0000019617-24-000611|0001628280-25-048859|138|,dev,credit_risk,0,not_applicable,false,ambiguous,superseded; likely matching miss,rule: superseded -> 0,credit_risk,2,neutral_or_mixed,false,credit_risk,0,not_applicable,false
+0000895421-25-000440|0000895421-26-000212||14,dev,revenue_demand,0,not_applicable,false,ambiguous,superseded; likely matching miss,rule: superseded -> 0,revenue_demand,1,not_applicable,false,revenue_demand,0,not_applicable,false
+0001652044-25-000062|0001652044-26-000071||215,test,legal_regulatory,2,more_negative,false,,,agreed,legal_regulatory,2,more_negative,false,legal_regulatory,2,more_negative,false
+0001652044-25-000062|0001652044-26-000071|203|184,dev,capital_liquidity,0,not_applicable,false,,,agreed,capital_liquidity,0,not_applicable,false,capital_liquidity,0,not_applicable,false
+0000021344-25-000061|0001628280-26-050503|114|116,test,macro,2,more_positive,true,,,agreed,macro,2,more_positive,true,macro,2,more_positive,true
+0001163165-25-000042|0001163165-25-000058|9|9,dev,strategy_mna,1,neutral_or_mixed,true,,,rule: capital projects -> strategy_mna,strategy_mna,1,not_applicable,true,costs_margins,1,not_applicable,true
+0001652044-26-000048|0001652044-26-000071|211|222,dev,capital_liquidity,0,not_applicable,true,,,adjudicated,capital_liquidity,2,more_positive,true,capital_liquidity,0,not_applicable,true
+0000950170-25-061046|0001193125-26-191507||47,test,accounting,1,neutral_or_mixed,false,,,rule: materiality >= 1 -> has a direction,accounting,1,not_applicable,false,accounting,1,not_applicable,false
+0000019617-25-000615|0001628280-25-048859|299|306,dev,revenue_demand,0,not_applicable,false,,,rule: topic = subject,other,0,not_applicable,false,revenue_demand,0,not_applicable,false
