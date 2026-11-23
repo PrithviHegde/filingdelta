@@ -115,6 +115,17 @@ How far filings trail earnings decides what can be measured:
 
 **Gold set for the change classifier.** 50 changes (reworded / added / removed), sampled with a fixed seed and a per-ticker quota (2 reworded, 1 added, 1 removed, plus 6 reworded), excluding rows seen while writing the prompt; split 35 dev / 15 test before labelling. Fields: topic, materiality (0 / 1 / 2), direction, forward_looking, from an investor's point of view, by the written rules in `labels/guidelines.md`. Two annotators labelled independently: the author, and Claude (an LLM) as second annotator, each blind to the other. Agreement on 49 items (one excluded as a matching error): forward_looking 100% (Cohen's kappa 1.00), topic 82% (0.79), direction 69% (0.48), materiality 61% (0.41; 96% within one level). Nearly all materiality disagreements went one way (the author rated higher on 16 items, lower on 3). Four rules settled 19 of the 32 disagreements and were added to the guidelines: materiality 2 is strict (new or removed risk, changed outlook, reversed trend, new legal matter, major event); a paragraph removed or added only because the new filing carries its own version is 0 (flagged as a likely matching miss); topic is the paragraph's subject, `other` only when nothing fits; direction is `not_applicable` only at materiality 0. The other 13 were adjudicated item by item. Result: 49 scored items (23 materiality 0, 21 materiality 1, 5 materiality 2) plus one `bad_match`.
 
+**Change classifier.** `src.classify` labels each change with a local model, qwen3.5:9b through Ollama, given a versioned system prompt that states the same rules as the guidelines and a JSON schema that constrains the output to the allowed values (no thinking mode; greedy decoding with a fixed seed). Runs are resumable: one JSON line per item, appended as it finishes, failures recorded and retried. Development used the 35-item dev split: prompt versions v1 to v6, a comparison with gemma4:12b (slightly better on direction, but 40% slower and two off-by-two false "material" labels, so qwen was kept), and dropping a `change_kind` field neither annotators nor models applied consistently. Scores against the gold labels (`src.evaluate`), test split scored once (14 items), and over all 49 gold items with 95% bootstrap intervals:
+
+| Field | Test kappa | All 49: agreement | All 49: kappa (95% CI) | Annotators' kappa |
+|---|---|---|---|---|
+| topic | 0.83 | 80% | 0.76 (0.62 to 0.88) | 0.79 |
+| materiality | 0.30 | 59% (100% within one level) | 0.33 (0.09 to 0.55) | 0.41 |
+| direction | 0.39 | 49% | 0.31 (0.13 to 0.48) | 0.48 |
+| forward_looking | 1.00 | 98% | 0.91 (0.65 to 1.00) | 1.00 |
+
+Topic and forward_looking are at the level of the two annotators; materiality is never off by more than one level, but its kappa interval is wide. Of 8 changes the model rated materiality 2, 4 are material in the gold set (it found 4 of the 5). Direction is right on 8 of 9 clearly positive or negative changes; the weak score comes from giving a sign to unsigned details. The 49-item figures include the dev items used while developing the prompt, so they are somewhat optimistic; the 14-item test scores are unbiased but very noisy.
+
 ## Known issues and limitations
 
 - **Silent parser failures on large banks.** For BAC, WFC, C, GS, PNC and USB, `edgartools` section extraction either can't find 10-Q MD&A or returns the wrong section (e.g. BAC's share repurchase table in place of MD&A; WFC's financial statement notes). WFC's 10-K MD&A is in Exhibit 13. These banks are excluded for now, so the bank sector is thin. Details in `notebooks/01_explore_edgar.ipynb`.
@@ -133,6 +144,7 @@ How far filings trail earnings decides what can be measured:
 - **Neither benchmark fits every ticker.** Over 2025-26, consumer staples and energy moved almost independently of the S&P 500 (estimated betas vs SPY: KO 0.04, PG −0.02, XOM 0.23; XLP itself −0.03 since mid-2025), so SPY removes little of their market-wide moves and the sector model is more informative. For tech the sector model is biased the other way: MSFT and NVDA are a large part of XLK (as XOM is of XLE and GOOGL of XLC), so part of their own move is subtracted out. Market-wide shocks still leak in: MS's 10-Q event window (2024-11-05/06) contains the post-election bank rally, +9.5% vs SPY but +3.8% vs XLF.
 - **XOM changed registrant on 2026-07-01** (redomiciled to Texas; ExxonMobil Holdings Corp, CIK 2115436, is the successor). Its earnings 8-K for Q2 2026 is under the new CIK, the Q2 10-Q still under the old one (34088). `src/earnings.py` searches both (`EXTRA_CIKS` in config); future XOM 10-Qs will need the new CIK in ingestion too.
 - **Half-day sessions** (day before July 4, day after Thanksgiving, Christmas Eve) close at 1pm, but the event-day rule assumes 4pm. No filing in the sample was accepted on one.
+- **The classifier rarely says a change has no clear direction.** On the dev split, qwen3.5:9b got the direction right on every clearly positive or negative change (6 of 6), but gave a sign, mostly positive, to 10 of 12 changes the gold set marks as unsigned (a newly named driver, a factual detail). Renaming the label from `neutral_or_mixed` to `no_clear_direction` did not change this (prompt v6). The price test therefore uses direction only on material (level 2) changes. The same rerun showed how noisy 35 items are: a rename that left materiality untouched moved 2 materiality labels and its kappa from 0.44 to 0.35.
 - **The gold set is small and its second annotator is an LLM.** With only 5 materiality-2 items, accuracy on that class is noisy (a test split of 14 scored items holds even fewer), so classifier results should be reported with per-class counts and the within-one-level rate, not as a single accuracy. The second annotator was Claude, not a second person, a common compromise for a one-person project; Claude also drafted the guidelines, so its labels may follow the written rules more literally than a second human would.
 - **MD&A length grows through the fiscal year** (Q1 shortest), need to check if this is actually a real trend, or just an anomaly. If it is, it has to be normalized.
 
@@ -148,6 +160,7 @@ How far filings trail earnings decides what can be measured:
 - [x] Paragraph embeddings (local bge-small) and embedding-based matching vs the fuzzy baseline
 - [x] Evaluate fuzzy vs embedding matching on the hand-checked rows (fuzzy 20 / 24, embedding 24 / 24)
 - [x] Gold set for change classification: 50 items, two blind annotators, adjudicated
-- [ ] LLM change classification (local model), evaluated on the gold set
+- [x] LLM change classifier (local model) built and evaluated on the gold set
+- [ ] Classify all 9,687 changes
 - [ ] RAG / LLM layer to explain what changed
 - [ ] Evaluation and explainability

@@ -39,10 +39,12 @@ notebooks/02_diff_sanity.ipynb     difflib baseline on MSFT (motivates order-ind
 notebooks/03_explore_diff.ipynb    step-by-step build-up of mask() / similarity_matrix() on one MSFT pair
 notebooks/04_embeddings_model.ipynb   embedding tests, fuzzy vs embedding disagreements, threshold calibration
 labels/diff_handcheck.csv          24 hand-annotated changes.csv rows (diff matching check)
-labels/guidelines.md               annotation rules for the change classifier (same rules as the prompt, v4)
+labels/guidelines.md               annotation rules for the change classifier (same rules as the prompt, v6)
 labels/gold_items.csv              50 gold items (35 dev / 15 test) from src/sample_gold.py, texts copied in
 labels/gold_labels.csv             adjudicated gold labels (final + both annotators' columns + resolution); gold_labels_prithvi.csv / gold_labels_claude.csv are the raw blind labels
 src/sample_gold.py                 reproducible stratified sample of gold items
+src/classify.py                    local-LLM change classifier (Ollama); resumable JSONL results in data/processed/classified/
+src/evaluate.py                    score a classify run against labels/gold_labels.csv (agreement, kappa, confusion, recall)
 ```
 
 ## Commands
@@ -61,6 +63,8 @@ python -m src.diff --tickers MSFT     # print report only, no write
 python -m src.embed                   # embed paragraphs (local model); --tickers: check only
 python -m src.diff --method embedding # write changes_embedding.csv (needs src.embed first)
 python -m src.sample_gold             # write labels/gold_items.csv; --dry-run: print only
+python -m src.classify --items gold --split dev   # classify gold dev items (Ollama running); --items all [--tickers X]
+python -m src.evaluate --split dev    # score that run; --model, --errors
 python -m src.prices                  # download prices (network)
 python -m src.earnings                # match filings to earnings 8-Ks (network); --tickers: print only
 python -m src.event_study             # offline; --tickers: print only
@@ -96,7 +100,11 @@ python -m src.event_study             # offline; --tickers: print only
 - Day 3 evaluation done: on the 24 hand-checked rows, same decision on 20; embedding right on the other 4 (fixes the JPM CECL false match; finds partners for JPM card income, JPM cross-reference, KO SG&A). Caveat: rows sampled from fuzzy output.
 - Day 4 so far: local model qwen3.5:9b via Ollama (think=False, temperature 0, seed 42, num_ctx 8192, num_predict 300; structured output via Pydantic JSON schema). Prompt v1 -> v4 in notebooks/05_classify.ipynb; change_kind field dropped (neither annotators nor model applied it consistently). Thinking mode ruled out (deliberated past 3,000 tokens on one item). Smoke test (5 dev items): 12/20 fields agree with the author's labels at v1, 18/20 at v3. ~4-5 s per item no-think -> ~12 h for 9,687 items.
 - Gold set done: labels/gold_labels.csv, 49 scored + 1 bad_match; inter-annotator kappa topic 0.79, materiality 0.41, direction 0.48, forward_looking 1.00.
-- Next: move classifier into src/classify.py (resumable, saves raw outputs, records failures), score qwen3.5:9b on the dev split, compare gemma4:12b and few-shot on dev; test split once at the end. Labelling sheet: Google Sheet 'FilingDelta gold set labels' (author's Drive).
+- classify.py + evaluate.py done. qwen3.5:9b, prompt v5, dev (35 scored): kappa topic 0.75, materiality 0.44 (100% within one), direction 0.29, forward_looking 0.89; human inter-annotator 0.79 / 0.41 / 0.48 / 1.00. 36 ok, 4.5 s/item. Errors: 4 of 8 gold-0 over-ratings are superseded paragraphs (expected); direction almost never neutral_or_mixed (1 of 12); topic errors default to revenue_demand (6 of 7).
+- gemma4:12b on dev: kappa topic 0.77, materiality 0.50 (94% within one), direction 0.39; 6.3 s/item. Paired: materiality differs on 5 items, direction 5 vs 2 in gemma's favour; gemma made 2 off-by-two material-2 errors (#42, #48), qwen none. **Chosen: qwen3.5:9b** (never off by two, 40% faster: ~12 h vs ~17 h full run). Direction errors are shared (models rarely use neutral_or_mixed).
+- Prompt v6 (2026-11-22): direction value neutral_or_mixed renamed no_clear_direction (same meaning; gold, guidelines, schema renamed; raw annotator files keep the old name). Dev rerun: direction kappa 0.28 (v5 0.29), no_clear_direction recall 2/12; materiality kappa 0.35 (v5 0.44) from just 2 items changing. Rename hypothesis rejected: the model gives a sign (mostly positive) to unsigned details. Also shows a 2-item change moves kappa ~0.1 on 35 items, so dev differences of that size are noise. **Decision:** keep v6 (clearer name, gold consistent), stop tuning, use direction in the price test only on materiality-2 changes (direction right on all 6 signed gold items).
+- Test split scored once (v6, 14 items): kappa topic 0.83, materiality 0.30 (100% within one), direction 0.39, forward_looking 1.00. All 49 gold, bootstrap 95% CI: topic 0.76 (0.62-0.88), materiality 0.33 (0.09-0.55), direction 0.31 (0.13-0.48), forward_looking 0.91. Predicted materiality 2 on 8 items, 4 correct (precision 50%, recall 4/5); direction right on 8/9 signed items. Test results: data/processed/classified/qwen3.5-9b_v6_gold_test.jsonl.
+- Next: full run, MSFT first (python -m src.classify --items all --tickers MSFT, ~45 min), check output, then all (~12 h, resumable). Day 7 note: materiality-2 labels are ~50% precise, so aggregate per filing rather than trusting single labels. Labelling sheet: Google Sheet 'FilingDelta gold set labels' (author's Drive).
 
 ## Known data quirks
 

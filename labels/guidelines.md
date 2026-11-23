@@ -1,7 +1,7 @@
 # Annotation guidelines: MD&A change classification
 
 These guidelines define the gold labels for the LLM change classifier (`src/classify.py`).
-They are the same rules the classifier's system prompt states (prompt v4), so that the model
+They are the same rules the classifier's system prompt states (prompt v6), so that the model
 and the annotators are judged against one definition. If a rule here changes, the prompt
 changes with it, and its version number goes up.
 
@@ -79,12 +79,13 @@ Is the company's situation or outlook described as better or worse than before?
 |---|---|
 | `more_positive` | the change reads better for the company (growth replaces decline, a risk is gone, stronger language) |
 | `more_negative` | the change reads worse (decline replaces growth, a new risk, weaker or more hedged language) |
-| `neutral_or_mixed` | the changed content has both positive and negative elements, or its impact is unclear |
+| `no_clear_direction` | the change matters but has no clear sign: a new factual detail, a changed driver that is neither better nor worse, or positive and negative elements together |
 | `not_applicable` | materiality 0 only |
 
 - Materiality 0 -> always `not_applicable`; materiality 1 or 2 -> never `not_applicable`. A change
-  that matters but reads neither better nor worse (a new factual detail, a changed driver with
-  no clear sign) is `neutral_or_mixed`.
+  that matters but reads neither better nor worse is `no_clear_direction`.
+- This value was first called `neutral_or_mixed` (renamed with prompt v6, same meaning): the old
+  name suggested only the "mixed" case, and models gave a sign to most unsigned details.
 - Added paragraphs: judge the new information. Removed paragraphs: judge the information dropped.
   A removed risk or problem is usually `more_positive`; an added one `more_negative`.
 
