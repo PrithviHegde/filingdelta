@@ -218,7 +218,7 @@ def run(items, item_ids, path, model=MODEL):
             if record['status'] != 'ok' or k % 25 == 0 or k == len(todo):
                 time_left = (time.time() - start) / k * (len(todo) - k)
                 print(f"  {k}/{len(todo)}  {record['status']:6s} {record['error'] or ''}"
-                      f"  ~{time_left / 60:.0f} min left")
+                      f"  ~{time_left / 60:.0f} min left", flush=True)
 
 
 def load_items(which, split=None, tickers=None):
