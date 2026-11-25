@@ -45,6 +45,7 @@ labels/gold_labels.csv             adjudicated gold labels (final + both annotat
 src/sample_gold.py                 reproducible stratified sample of gold items
 src/classify.py                    local-LLM change classifier (Ollama); resumable JSONL results in data/processed/classified/
 src/evaluate.py                    score a classify run against labels/gold_labels.csv (agreement, kappa, confusion, recall)
+src/price_test.py                  trend detector, per-filing scores -> filing_features.csv, H1-H3 + filing-day news check, docs/figures/
 ```
 
 ## Commands
@@ -65,6 +66,7 @@ python -m src.diff --method embedding # write changes_embedding.csv (needs src.e
 python -m src.sample_gold             # write labels/gold_items.csv; --dry-run: print only
 python -m src.classify --items gold --split dev   # classify gold dev items (Ollama running); --items all [--tickers X]
 python -m src.evaluate --split dev    # score that run; --model, --errors
+python -m src.price_test              # offline, ~10 s: filing_features.csv, tests, figures
 python -m src.prices                  # download prices (network)
 python -m src.earnings                # match filings to earnings 8-Ks (network); --tickers: print only
 python -m src.event_study             # offline; --tickers: print only
@@ -88,7 +90,7 @@ python -m src.event_study             # offline; --tickers: print only
 - **Event study:** market model (OLS, simple returns on adjusted closes) vs SPY (primary) and sector ETF (`SECTOR_ETF` in config; GOOGL -> XLC), estimation window -250 to -30 trading days (need >= 200 days), CARs [0,+1], [-1,+1], [0,+5], SCAR = CAR / (sigma * sqrt(L)). Event day = acceptance day, or next trading day if at/after 16:00 ET (np.searchsorted on the price calendar, so weekends / market holidays roll forward).
 - **Earnings dates:** from SEC, not a price vendor: latest 8-K with Item 2.02 accepted after period end and at/before the filing, within 60 days; header acceptance time. Same CARs computed for the earnings event; `earnings_in_window` / `trading_days_after_earnings` in events.csv mark confounded filing windows.
 
-## Status (as of 2026-11-20)
+## Status (as of 2026-11-23)
 
 - Day 1 done: ingestion for 11 tickers x 8 filings (88 MD&A files in `data/processed/`).
 - Day 2 task 1 done (manifest + pairs), run against SEC: manifest 88 rows (66 10-Q, 22 10-K, no amendments, no nulls, no fiscal-quarter warnings); pairs.csv 78 pairs (11 annual, 34 qoq, 33 yoy; MSFT has 4 qoq). Fiscal labels and acceptance times checked by hand for all tickers.
@@ -105,7 +107,8 @@ python -m src.event_study             # offline; --tickers: print only
 - Prompt v6 (2026-11-22): direction value neutral_or_mixed renamed no_clear_direction (same meaning; gold, guidelines, schema renamed; raw annotator files keep the old name). Dev rerun: direction kappa 0.28 (v5 0.29), no_clear_direction recall 2/12; materiality kappa 0.35 (v5 0.44) from just 2 items changing. Rename hypothesis rejected: the model gives a sign (mostly positive) to unsigned details. Also shows a 2-item change moves kappa ~0.1 on 35 items, so dev differences of that size are noise. **Decision:** keep v6 (clearer name, gold consistent), stop tuning, use direction in the price test only on materiality-2 changes (direction right on all 6 signed gold items).
 - Test split scored once (v6, 14 items): kappa topic 0.83, materiality 0.30 (100% within one), direction 0.39, forward_looking 1.00. All 49 gold, bootstrap 95% CI: topic 0.76 (0.62-0.88), materiality 0.33 (0.09-0.55), direction 0.31 (0.13-0.48), forward_looking 0.91. Predicted materiality 2 on 8 items, 4 correct (precision 50%, recall 4/5); direction right on 8/9 signed items. Test results: data/processed/classified/qwen3.5-9b_v6_gold_test.jsonl.
 - MSFT run done (2026-11-22): 646 ok, 0 failed, 5.3 s/item. Reworded changes: 26% materiality 2 (103), about half trend reversals ("decreased" <-> "increased" on a named line, which the rules make 2), the rest mostly driver changes over-rated. MSFT results copied into data/processed/classified/qwen3.5-9b_v6_all.jsonl, so the full run has 9,041 left (~13 h).
-- Next: full run, started by Prithvi: `caffeinate -is python -m src.classify --items all` (lid open, plugged in; rerun the same command to resume). Day 7: split materiality-2 changes into trend reversals (detect in code: increase/decrease word swapped; these follow the reported numbers, so they overlap with earnings) and other material changes (risk, outlook, legal, events); test separately; aggregate per filing, since material-2 labels are ~50% precise. Labelling sheet: Google Sheet 'FilingDelta gold set labels' (author's Drive).
+- Full run done (2026-11-23): 9,686 of 9,687 ok in data/processed/classified/qwen3.5-9b_v6_all.jsonl, 13.6 h, 5.0 s/item, 0 consistency-rule violations. 1 failure (PG qoq reworded: model reasoned inside `reason` until num_predict; left out). Materiality 0/1/2: 36/48/15%; material-2 by ticker 8% (JPM) to 39% (PG). PG is high because its segment bullets describe growth in words ("low single digits" -> "mid-single digits", "decreased" -> "increased"), which mask() does not catch, so number-like changes reach the model as wording. Material-2: 13 of 1,497 no_clear_direction; median 17.5 per pair.
+- Day 7 done (2026-11-23, src/price_test.py): 56 filings (one comparison each: yoy/annual, else qoq), 36 without earnings in [0,+1]. Material-2 split by a word rule: trend 566 (first direction word flipped or 'single digits' size changed), other 430 (non-trend, topic not revenue_demand/costs_margins), 501 neither. Pre-specified tests, Spearman after within-ticker demeaning, within-ticker permutation p: H1 trend tone vs earnings SCAR rho 0.06 p 0.71 (sanity check failed: MD&A is vs last year, market reacts vs expectations); H2 other tone vs filing SCAR (clean) -0.20 p 0.27; H3 material share vs |SCAR| -0.43 p 0.023 (wrong sign, fails Bonferroni 0.006, -0.27 p 0.24 dropping one filing per ticker). Headline (added after H2/H3, exploratory): clean filing days mean |SCAR| 0.81 (CI 0.63-1.01) vs 0.80 no-news, 3% > 1.96; earnings 1.97, 39%. Filings carry no price news of their own; consistent with Lazy Prices (slow drift over months). README has Findings. Next: Day 8 wrap-up (portfolio panel, resume bullet); backlog: more filings / smaller firms / monthly horizon, Risk Factors, RAG.
 
 ## Known data quirks
 
