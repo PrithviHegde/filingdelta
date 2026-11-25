@@ -2,7 +2,7 @@
 
 **Research question:** do changes in the language of SEC filings (10-Q / 10-K MD&A) show up in stock prices, and with what lag?
 
-Full day-by-day plan: `docs/plan.md`. Project overview and known issues: `README.md`.
+Full day-by-day plan: `docs/plan.md`. Project overview and results: `README.md`; pipeline details and known issues: `docs/methods.md`.
 
 ## Conventions
 
@@ -10,7 +10,7 @@ Full day-by-day plan: `docs/plan.md`. Project overview and known issues: `README
 - Run new code on **MSFT first**, check the output, then all 11 tickers.
 - "Saved" is not "correct": look at actual output (lengths, first lines, sample rows), not just exit codes. Silent parser failures already cost the big banks.
 - Commit messages: short imperative, like the existing history.
-- Keep the README's Roadmap and Known issues up to date when something lands.
+- Keep the README (results, limitations, next steps) and docs/methods.md (pipeline details, known issues) up to date when something lands.
 
 ## Environment
 
